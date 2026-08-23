@@ -1,0 +1,11 @@
+﻿Agência: 1234-5 Conta: 12345-6
+Data;Histórico;Docto.;Crédito (R$);Débito (R$);Saldo (R$)
+20/08/2026;PIX RECEBIDO;000123;1.500,00;;3.500,00
+21/08/2026;COMPRA CARTAO SUPERMERCADO;000124;;250,75;3.249,25
+22/08/2026;PIX ENVIADO;000125;;300,00;2.949,25
+
+Últimos Lancamentos
+Data;Histórico;Docto.;Crédito (R$);Débito (R$);Saldo (R$)
+22/08/2026;PIX ENVIADO;000125;;300,00;2.949,25
+
+Total;;;;;2.949,25

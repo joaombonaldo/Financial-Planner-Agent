@@ -31,10 +31,10 @@ Projeto único em `backend/`, conforme `plan.md`. Todos os caminhos abaixo são 
 **Purpose**: preparar o projeto `backend/` para receber o código desta feature (ainda não existe nada além do
 esqueleto criado pelo `uv init`).
 
-- [ ] T001 Adicionar `pytest` como dependência de desenvolvimento (`uv add --dev pytest` em `backend/`)
-- [ ] T002 [P] Criar diretórios `backend/src/financial_planner/nodes/`, `backend/src/financial_planner/parsers/` e
+- [X] T001 Adicionar `pytest` como dependência de desenvolvimento (`uv add --dev pytest` em `backend/`)
+- [X] T002 [P] Criar diretórios `backend/src/financial_planner/nodes/`, `backend/src/financial_planner/parsers/` e
       `backend/src/financial_planner/db/`, cada um com `__init__.py`
-- [ ] T003 [P] Criar `backend/tests/__init__.py`, `backend/tests/fixtures/bradesco/` e
+- [X] T003 [P] Criar `backend/tests/__init__.py`, `backend/tests/fixtures/bradesco/` e
       `backend/tests/fixtures/inter/`
 
 **Checkpoint**: estrutura de pastas pronta para receber código de domínio e testes.
@@ -48,19 +48,19 @@ parser. Nenhuma user story pode ser implementada antes desta fase.
 
 **⚠️ CRITICAL**: bloqueia todas as user stories abaixo.
 
-- [ ] T004 Definir o schema tipado da Transação normalizada e do `ImportResult` (campos desta feature, ver
+- [X] T004 Definir o schema tipado da Transação normalizada e do `ImportResult` (campos desta feature, ver
       `data-model.md`) em `backend/src/financial_planner/state.py`
-- [ ] T005 Criar `backend/src/financial_planner/db/schema.sql` com a tabela `transactions` (subset usado por esta
+- [X] T005 Criar `backend/src/financial_planner/db/schema.sql` com a tabela `transactions` (subset usado por esta
       feature: `dedup_hash`, `date`, `description_raw`, `account`, `type`, `amount`, `month_ref`, mais colunas
       nullable `category`/`subcategory`/`confidence`/`installment_id` reservadas para features futuras), usando SQL
       padrão (Princípio IV — persistência portável)
-- [ ] T006 Implementar `backend/src/financial_planner/db/repository.py` com `transaction_exists(dedup_hash)` e
+- [X] T006 Implementar `backend/src/financial_planner/db/repository.py` com `transaction_exists(dedup_hash)` e
       `insert_transaction(transaction)`, únicos pontos de acesso ao SQLite (depende de T005)
-- [ ] T007 [P] Definir o contrato comum de adapter (assinaturas de detecção e parsing, ver
+- [X] T007 [P] Definir o contrato comum de adapter (assinaturas de detecção e parsing, ver
       `contracts/parser-adapter.md`) em `backend/src/financial_planner/parsers/base.py`
-- [ ] T008 Implementar normalização de valor (formato brasileiro → decimal) e data (`DD/MM/AAAA` → ISO) em
+- [X] T008 Implementar normalização de valor (formato brasileiro → decimal) e data (`DD/MM/AAAA` → ISO) em
       `backend/src/financial_planner/parsers/normalize.py` (depende de T004)
-- [ ] T009 Implementar cálculo do hash de deduplicação (SHA-256 sobre `date+description_raw+amount+account`
+- [X] T009 Implementar cálculo do hash de deduplicação (SHA-256 sobre `date+description_raw+amount+account`
       normalizados, ver `research.md`) em `backend/src/financial_planner/parsers/dedup.py` (depende de T008)
 
 **Checkpoint**: fundação pronta — as três user stories podem começar.
@@ -79,28 +79,28 @@ transações no schema normalizado (Cenário 1 de `quickstart.md`).
 
 > Escrever estes testes primeiro; devem falhar antes da implementação.
 
-- [ ] T010 [P] [US1] Criar fixtures CSV do Bradesco (caso feliz + BOM + header duplicado "Últimos Lancamentos" +
+- [X] T010 [P] [US1] Criar fixtures CSV do Bradesco (caso feliz + BOM + header duplicado "Últimos Lancamentos" +
       rodapé "Total") em `backend/tests/fixtures/bradesco/`
-- [ ] T011 [P] [US1] Criar fixtures CSV do Inter (caso feliz + `Descrição` vazia + linhas de metadado) em
+- [X] T011 [P] [US1] Criar fixtures CSV do Inter (caso feliz + `Descrição` vazia + linhas de metadado) em
       `backend/tests/fixtures/inter/`
-- [ ] T012 [P] [US1] Teste unitário de parsing do Bradesco em
+- [X] T012 [P] [US1] Teste unitário de parsing do Bradesco em
       `backend/tests/test_parsers.py::test_parse_bradesco` (depende de T010)
-- [ ] T013 [P] [US1] Teste unitário de parsing do Inter, incluindo fallback `Descrição` → `Histórico`, em
+- [X] T013 [P] [US1] Teste unitário de parsing do Inter, incluindo fallback `Descrição` → `Histórico`, em
       `backend/tests/test_parsers.py::test_parse_inter` (depende de T011)
-- [ ] T014 [P] [US1] Teste unitário de detecção automática de banco (Bradesco, Inter) em
+- [X] T014 [P] [US1] Teste unitário de detecção automática de banco (Bradesco, Inter) em
       `backend/tests/test_parsers.py::test_detect_bank` (depende de T010, T011)
 
 ### Implementation for User Story 1
 
-- [ ] T015 [US1] Implementar filtro de linha de transação por regex de data (`^\d{2}/\d{2}/\d{4};`) reutilizável
+- [X] T015 [US1] Implementar filtro de linha de transação por regex de data (`^\d{2}/\d{2}/\d{4};`) reutilizável
       pelos dois adapters em `backend/src/financial_planner/parsers/base.py` (depende de T007)
-- [ ] T016 [P] [US1] Implementar adapter do Bradesco (duas colunas Crédito/Débito, `Docto.`) em
+- [X] T016 [P] [US1] Implementar adapter do Bradesco (duas colunas Crédito/Débito, `Docto.`) em
       `backend/src/financial_planner/parsers/bradesco.py` (depende de T015, T008, T009)
-- [ ] T017 [P] [US1] Implementar adapter do Inter (coluna `Valor` com sinal, fallback de descrição) em
+- [X] T017 [P] [US1] Implementar adapter do Inter (coluna `Valor` com sinal, fallback de descrição) em
       `backend/src/financial_planner/parsers/inter.py` (depende de T015, T008, T009)
-- [ ] T018 [US1] Implementar detecção automática de banco por estrutura de colunas em
+- [X] T018 [US1] Implementar detecção automática de banco por estrutura de colunas em
       `backend/src/financial_planner/parsers/detect.py` (depende de T016, T017)
-- [ ] T019 [US1] Implementar node `detect_and_parse` orquestrando detecção + adapter + persistência via
+- [X] T019 [US1] Implementar node `detect_and_parse` orquestrando detecção + adapter + persistência via
       `db/repository.py` em `backend/src/financial_planner/nodes/ingest.py` (depende de T006, T018)
 
 **Checkpoint**: User Story 1 completa e testável de forma independente.
@@ -116,15 +116,15 @@ transações no schema normalizado (Cenário 1 de `quickstart.md`).
 
 ### Tests for User Story 2 ⚠️
 
-- [ ] T020 [P] [US2] Teste unitário: reimportar a mesma fixture do Bradesco resulta em zero transações novas, em
+- [X] T020 [P] [US2] Teste unitário: reimportar a mesma fixture do Bradesco resulta em zero transações novas, em
       `backend/tests/test_parsers.py::test_reimport_skips_duplicates` (depende de T010)
-- [ ] T021 [P] [US2] Teste unitário: duas transações equivalentes vindas de seções diferentes do mesmo arquivo
+- [X] T021 [P] [US2] Teste unitário: duas transações equivalentes vindas de seções diferentes do mesmo arquivo
       Bradesco (extrato principal + "Últimos Lancamentos") geram apenas uma transação, em
       `backend/tests/test_parsers.py::test_dedup_within_same_file`
 
 ### Implementation for User Story 2
 
-- [ ] T022 [US2] Estender o node `detect_and_parse` para checar `transaction_exists(dedup_hash)` antes de inserir e
+- [X] T022 [US2] Estender o node `detect_and_parse` para checar `transaction_exists(dedup_hash)` antes de inserir e
       contabilizar `transactions_imported` / `transactions_skipped_duplicate` no `ImportResult` em
       `backend/src/financial_planner/nodes/ingest.py` (depende de T019, T006, T004)
 
@@ -141,19 +141,19 @@ propositalmente incorreto (Cenário 3 de `quickstart.md`).
 
 ### Tests for User Story 3 ⚠️
 
-- [ ] T023 [P] [US3] Teste unitário: arquivo com layout não reconhecido retorna erro explícito e nenhuma transação,
+- [X] T023 [P] [US3] Teste unitário: arquivo com layout não reconhecido retorna erro explícito e nenhuma transação,
       em `backend/tests/test_parsers.py::test_detect_unknown_bank`
-- [ ] T024 [P] [US3] Teste unitário: fixture com saldo alterado propositalmente produz
+- [X] T024 [P] [US3] Teste unitário: fixture com saldo alterado propositalmente produz
       `balance_reconciliation = mismatch` e mensagem em `warnings`, mantendo as transações corretas importadas, em
       `backend/tests/test_parsers.py::test_balance_reconciliation_mismatch`
 
 ### Implementation for User Story 3
 
-- [ ] T025 [US3] Implementar retorno de erro explícito para banco não reconhecido em
+- [X] T025 [US3] Implementar retorno de erro explícito para banco não reconhecido em
       `backend/src/financial_planner/parsers/detect.py` (depende de T018)
-- [ ] T026 [US3] Implementar checagem de saldo (saldo anterior ± valor da transação == saldo declarado, com
+- [X] T026 [US3] Implementar checagem de saldo (saldo anterior ± valor da transação == saldo declarado, com
       tolerância de arredondamento) em `backend/src/financial_planner/parsers/reconcile.py` (depende de T015)
-- [ ] T027 [US3] Integrar erro de banco não reconhecido e avisos de reconciliação ao `ImportResult` retornado pelo
+- [X] T027 [US3] Integrar erro de banco não reconhecido e avisos de reconciliação ao `ImportResult` retornado pelo
       node `detect_and_parse` em `backend/src/financial_planner/nodes/ingest.py` (depende de T022, T025, T026)
 
 **Checkpoint**: as três user stories funcionam de forma independente e integrada.
@@ -162,11 +162,11 @@ propositalmente incorreto (Cenário 3 de `quickstart.md`).
 
 ## Phase 6: Polish & Cross-Cutting Concerns
 
-- [ ] T028 [P] Rodar os cenários de `quickstart.md` manualmente contra um extrato real (fora do repositório, via
+- [X] T028 [P] Rodar os cenários de `quickstart.md` manualmente contra um extrato real (fora do repositório, via
       `extracts/`) para validar end-to-end antes de considerar a feature pronta
-- [ ] T029 Revisar `nodes/ingest.py` contra o Princípio II da constituição (node não deve importar `pandas` nem
+- [X] T029 Revisar `nodes/ingest.py` contra o Princípio II da constituição (node não deve importar `pandas` nem
       `sqlite3` diretamente — apenas via `parsers/` e `db/repository.py`)
-- [ ] T030 [P] Documentar em `backend/README.md` como rodar os testes desta feature (`uv run pytest`)
+- [X] T030 [P] Documentar em `backend/README.md` como rodar os testes desta feature (`uv run pytest`)
 
 ---
 
@@ -240,3 +240,13 @@ Task: "Implementar adapter do Inter em backend/src/financial_planner/parsers/int
 - Categoria, subcategoria, confiança e parcelamento permanecem `NULL`/não tocados por esta feature — são
   responsabilidade de specs futuras
 - Commitar após cada task ou grupo lógico de tasks
+- **T028 concluída** com os 2 extratos reais do usuário (Bradesco + Inter, ago/2026) em `extracts/` (gitignored,
+  confirmado via `git check-ignore`). Os 3 cenários do `quickstart.md` reconciliaram corretamente. A validação com dado real
+  encontrou 2 bugs não previstos pela spec/fixtures originais, corrigidos e cobertos por novos testes de
+  regressão (11/11 passando):
+  1. Linha administrativa do Bradesco com Crédito e Débito ambos em branco (ex.: "COD. LANC. 0") crashava o
+     parser — corrigido para tratar como transação de valor zero.
+  2. A checagem de reconciliação de saldo normalizava o saldo sempre para valor absoluto, perdendo o sinal em
+     contas com saldo negativo (cheque especial), e assumia ordem cronológica ascendente no arquivo — mas o
+     export do Inter vem em ordem descendente (mais recente primeiro). Ambos corrigidos em
+     `parsers/reconcile.py`.
