@@ -30,8 +30,14 @@ def parse(path: str) -> list[Transaction]:
         if credito.strip():
             amount = parse_brl_amount(credito)
             tx_type = TransactionType.INCOME
-        else:
+        elif debito.strip():
             amount = parse_brl_amount(debito)
+            tx_type = TransactionType.EXPENSE
+        else:
+            # Linha administrativa sem movimentação real (ex.: "COD. LANC. 0" com as
+            # duas colunas em branco/espaço) — observada em exports reais. Saldo não
+            # muda; valor zero não afeta totais independente do type escolhido.
+            amount = 0.0
             tx_type = TransactionType.EXPENSE
 
         dedup_hash = compute_dedup_hash(

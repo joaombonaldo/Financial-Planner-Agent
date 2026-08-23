@@ -162,7 +162,7 @@ propositalmente incorreto (Cenário 3 de `quickstart.md`).
 
 ## Phase 6: Polish & Cross-Cutting Concerns
 
-- [ ] T028 [P] Rodar os cenários de `quickstart.md` manualmente contra um extrato real (fora do repositório, via
+- [X] T028 [P] Rodar os cenários de `quickstart.md` manualmente contra um extrato real (fora do repositório, via
       `extracts/`) para validar end-to-end antes de considerar a feature pronta
 - [X] T029 Revisar `nodes/ingest.py` contra o Princípio II da constituição (node não deve importar `pandas` nem
       `sqlite3` diretamente — apenas via `parsers/` e `db/repository.py`)
@@ -240,7 +240,13 @@ Task: "Implementar adapter do Inter em backend/src/financial_planner/parsers/int
 - Categoria, subcategoria, confiança e parcelamento permanecem `NULL`/não tocados por esta feature — são
   responsabilidade de specs futuras
 - Commitar após cada task ou grupo lógico de tasks
-- **T028 pendente**: exige um extrato real do usuário em `extracts/` (gitignored), que não existe neste ambiente.
-  Os 3 cenários do `quickstart.md` foram validados com fixtures sintéticas via `uv run pytest` (8/8 passando), mas
-  a validação final com dado real fica para o usuário rodar manualmente antes de considerar a feature "pronta em
-  produção pessoal"
+- **T028 concluída** com os 2 extratos reais do usuário (Bradesco + Inter, ago/2026) em `extracts/` (gitignored,
+  confirmado via `git check-ignore`). Os 3 cenários do `quickstart.md` reconciliaram corretamente. A validação com dado real
+  encontrou 2 bugs não previstos pela spec/fixtures originais, corrigidos e cobertos por novos testes de
+  regressão (11/11 passando):
+  1. Linha administrativa do Bradesco com Crédito e Débito ambos em branco (ex.: "COD. LANC. 0") crashava o
+     parser — corrigido para tratar como transação de valor zero.
+  2. A checagem de reconciliação de saldo normalizava o saldo sempre para valor absoluto, perdendo o sinal em
+     contas com saldo negativo (cheque especial), e assumia ordem cronológica ascendente no arquivo — mas o
+     export do Inter vem em ordem descendente (mais recente primeiro). Ambos corrigidos em
+     `parsers/reconcile.py`.

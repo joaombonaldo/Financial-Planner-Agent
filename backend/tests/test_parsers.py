@@ -8,7 +8,9 @@ from financial_planner.state import Bank, BalanceReconciliation, TransactionType
 
 BRADESCO_HAPPY_PATH = "tests/fixtures/bradesco/happy_path.csv"
 BRADESCO_WRONG_BALANCE = "tests/fixtures/bradesco/wrong_balance.csv"
+BRADESCO_ADMIN_LINE = "tests/fixtures/bradesco/admin_line_and_negative_balance.csv"
 INTER_HAPPY_PATH = "tests/fixtures/inter/happy_path.csv"
+INTER_DESCENDING_ORDER = "tests/fixtures/inter/descending_order.csv"
 UNRECOGNIZED_BANK = "tests/fixtures/unrecognized_bank.csv"
 
 
@@ -97,3 +99,32 @@ def test_balance_reconciliation_mismatch():
 
     assert reconciliation == BalanceReconciliation.MISMATCH
     assert len(warnings) == 1
+
+
+# --- Regressão: casos encontrados na validação com extratos reais (T028) --------------
+
+
+def test_parse_bradesco_administrative_line_with_no_amount():
+    """Linha com Crédito e Débito ambos em branco (ex.: 'COD. LANC. 0') não deve crashar."""
+    transactions = bradesco.parse(BRADESCO_ADMIN_LINE)
+
+    admin_tx = transactions[1]
+    assert admin_tx.description_raw == "COD. LANC. 0"
+    assert admin_tx.amount == 0.0
+
+
+def test_balance_reconciliation_preserves_negative_balance_sign():
+    """Saldo negativo (cheque especial) não pode ser normalizado para valor absoluto."""
+    reconciliation, warnings = check_balance_reconciliation(BRADESCO_ADMIN_LINE, Bank.BRADESCO)
+
+    assert reconciliation == BalanceReconciliation.OK
+    assert warnings == []
+
+
+def test_balance_reconciliation_normalizes_descending_file_order():
+    """Arquivos com a linha mais recente primeiro (padrão observado no Inter) devem
+    reconciliar normalmente — a ordem cronológica é normalizada internamente."""
+    reconciliation, warnings = check_balance_reconciliation(INTER_DESCENDING_ORDER, Bank.INTER)
+
+    assert reconciliation == BalanceReconciliation.OK
+    assert warnings == []
