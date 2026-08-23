@@ -1,0 +1,16 @@
+# Dados sensíveis / reais — nunca entram no repo
+extracts/
+*.db
+backend/.env
+backend/src/financial_planner/config/budget.local.yaml
+
+# Python
+__pycache__/
+*.pyc
+backend/.venv/
+
+# Agent folders (credenciais/artefatos privados)
+.claude/settings.local.json
+
+# OS
+.DS_Store
