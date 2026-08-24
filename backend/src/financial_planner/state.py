@@ -71,3 +71,9 @@ class CategoryComparison:
 
 class BudgetNotConfiguredError(Exception):
     """Raised when no local budget configuration file exists."""
+
+
+@dataclass
+class InsightsResult:
+    summary: str | None = None
+    error: str | None = None

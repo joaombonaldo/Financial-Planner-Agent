@@ -52,6 +52,11 @@ def run_month(month_ref: str, db_path: str, source_files: list[str]) -> None:
             f"de R$ {entry['goal']:.2f} (diferença: R$ {entry['difference']:.2f})"
         )
 
+    if result.get("insights_summary"):
+        print(f"\n{result['insights_summary']}")
+    elif result.get("insights_error"):
+        print(f"\n(Não foi possível gerar insights: {result['insights_error']})")
+
 
 def main() -> None:
     if len(sys.argv) < 3:

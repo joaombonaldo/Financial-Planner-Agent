@@ -5,9 +5,9 @@ opens the budget file or sqlite3 directly (Principle II).
 """
 
 from financial_planner.budget.config import get_budget
-from financial_planner.categorization.taxonomy import TRANSFER_CATEGORY
+from financial_planner.budget.spending import compute_category_spend
 from financial_planner.db import repository
-from financial_planner.state import BudgetStatus, CategoryComparison, TransactionType
+from financial_planner.state import BudgetStatus, CategoryComparison
 
 
 def check_budget(
@@ -21,21 +21,11 @@ def check_budget(
     finally:
         conn.close()
 
-    spend_by_category: dict[str, float] = {category: 0.0 for category in goals}
-    for transaction in transactions:
-        if transaction.confidence != "high":
-            continue
-        if transaction.type != TransactionType.EXPENSE:
-            continue
-        if transaction.category == TRANSFER_CATEGORY:
-            continue
-        if transaction.category not in spend_by_category:
-            continue
-        spend_by_category[transaction.category] += transaction.amount
+    spend_by_category = compute_category_spend(transactions)
 
     comparisons = []
     for category, goal in goals.items():
-        actual_spend = spend_by_category[category]
+        actual_spend = spend_by_category.get(category, 0.0)
         difference = goal - actual_spend
         status = BudgetStatus.OVER_BUDGET if actual_spend > goal else BudgetStatus.WITHIN_BUDGET
         comparisons.append(

@@ -1,10 +1,12 @@
 """Builds and compiles the StateGraph:
-detect_and_parse -> categorize -> human_review -> update_memory -> budget_check.
+detect_and_parse -> categorize -> human_review -> update_memory -> budget_check
+-> generate_insights.
 
 human_review uses a self-loop conditional edge (instead of an internal loop) to handle
 multiple pending items — see nodes/review.py for why. update_memory only runs once
-human_review has fully resolved the month (no pending items left), and budget_check
-runs right after, comparing the now-finalized month against configured goals.
+human_review has fully resolved the month (no pending items left), budget_check runs
+right after comparing the now-finalized month against configured goals, and
+generate_insights runs last, reusing budget_check's output as context.
 """
 
 import sqlite3
@@ -17,6 +19,7 @@ from financial_planner.graph_state import GraphState
 from financial_planner.nodes.budget import check_budget
 from financial_planner.nodes.categorize import categorize
 from financial_planner.nodes.ingest import detect_and_parse
+from financial_planner.nodes.insights import generate_insights
 from financial_planner.nodes.memory import update_memory
 from financial_planner.nodes.review import review
 
@@ -58,6 +61,13 @@ def _budget_node(state: GraphState) -> dict:
     }
 
 
+def _insights_node(state: GraphState) -> dict:
+    result = generate_insights(
+        state["month_ref"], state["db_path"], budget_report=state.get("budget_report")
+    )
+    return {"insights_summary": result.summary, "insights_error": result.error}
+
+
 def _has_pending_review(state: GraphState) -> str:
     conn = connect(state["db_path"])
     try:
@@ -77,6 +87,7 @@ def build_graph(db_path: str):
     builder.add_node("human_review", _review_node)
     builder.add_node("update_memory", _memory_node)
     builder.add_node("budget_check", _budget_node)
+    builder.add_node("generate_insights", _insights_node)
 
     builder.set_entry_point("detect_and_parse")
     builder.add_edge("detect_and_parse", "categorize")
@@ -87,6 +98,7 @@ def build_graph(db_path: str):
         {"human_review": "human_review", "update_memory": "update_memory"},
     )
     builder.add_edge("update_memory", "budget_check")
-    builder.add_edge("budget_check", END)
+    builder.add_edge("budget_check", "generate_insights")
+    builder.add_edge("generate_insights", END)
 
     return builder.compile(checkpointer=checkpointer)

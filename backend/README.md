@@ -2,7 +2,8 @@
 
 ## Environment variables
 
-Used by the categorization feature (`nodes/categorize.py` → `llm/client.py`) to configure the local LLM:
+Used by the categorization and insights features (`nodes/categorize.py` / `nodes/insights.py` → `llm/client.py`)
+to configure the local LLM:
 
 | Variable | Default | Description |
 |---|---|---|
@@ -38,7 +39,11 @@ checkpointer (`thread_id = month_ref`). Once the month has nothing left pending,
 
 1. persists every confirmed category into `merchant_memory` (`nodes/memory.py`) — that same merchant
    auto-categorizes with `confidence = high` the next time it shows up, in any future month;
-2. compares actual spend per category against `budget.local.yaml` (`nodes/budget.py`) and prints the result.
+2. compares actual spend per category against `budget.local.yaml` (`nodes/budget.py`) and prints the result;
+3. asks the LLM for a short Portuguese summary of the month, grounded in that spend and budget comparison, and
+   a comparison against the previous month when data for it exists (`nodes/insights.py`). This step is optional
+   by design — if the LLM is unreachable or returns something unusable, the CLI prints why instead of the
+   summary, and nothing about the month's processing fails because of it.
 
 ## How the tests drive the graph without a real terminal
 
