@@ -45,17 +45,37 @@ def run_month(month_ref: str, db_path: str, source_files: list[str]) -> None:
 
     print(f"\nMês {month_ref} processado — nenhuma pendência de revisão restante.")
 
-    for entry in result.get("budget_report", []):
-        marker = "OK" if entry["status"] == "within_budget" else "ESTOUROU"
-        print(
-            f"  [{marker}] {entry['category']}: R$ {entry['actual_spend']:.2f} "
-            f"de R$ {entry['goal']:.2f} (diferença: R$ {entry['difference']:.2f})"
-        )
+    report = result.get("report")
+    if report:
+        _print_report(report)
 
-    if result.get("insights_summary"):
-        print(f"\n{result['insights_summary']}")
-    elif result.get("insights_error"):
-        print(f"\n(Não foi possível gerar insights: {result['insights_error']})")
+
+def _print_report(report: dict) -> None:
+    print(
+        f"\nReceitas: R$ {report['total_income']:.2f} | Despesas: R$ {report['total_expense']:.2f} "
+        f"| Saldo: R$ {report['net_balance']:.2f}"
+    )
+    if report["transfer_total"]:
+        print(f"Transferências internas (fora do saldo): R$ {report['transfer_total']:.2f}")
+
+    print("\nPor categoria:")
+    for entry in report["category_breakdown"]:
+        sign = "+" if entry["type"] == "income" else "-"
+        print(f"  {sign} {entry['category']}: R$ {entry['total']:.2f}")
+
+    if report["budget_report"]:
+        print("\nOrçamento:")
+        for entry in report["budget_report"]:
+            marker = "OK" if entry["status"] == "within_budget" else "ESTOUROU"
+            print(
+                f"  [{marker}] {entry['category']}: R$ {entry['actual_spend']:.2f} "
+                f"de R$ {entry['goal']:.2f} (diferença: R$ {entry['difference']:.2f})"
+            )
+
+    if report["insights_summary"]:
+        print(f"\n{report['insights_summary']}")
+    elif report["insights_error"]:
+        print(f"\n(Não foi possível gerar insights: {report['insights_error']})")
 
 
 def main() -> None:

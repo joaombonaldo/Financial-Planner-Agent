@@ -77,3 +77,24 @@ class BudgetNotConfiguredError(Exception):
 class InsightsResult:
     summary: str | None = None
     error: str | None = None
+
+
+@dataclass
+class CategoryBreakdownEntry:
+    category: str
+    type: TransactionType
+    total: float
+
+
+@dataclass
+class MonthlyReport:
+    month_ref: str
+    total_income: float
+    total_expense: float
+    net_balance: float
+    transfer_total: float
+    category_breakdown: list[CategoryBreakdownEntry] = field(default_factory=list)
+    transaction_count: int = 0
+    budget_report: list[dict] = field(default_factory=list)
+    insights_summary: str | None = None
+    insights_error: str | None = None

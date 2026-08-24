@@ -39,11 +39,16 @@ checkpointer (`thread_id = month_ref`). Once the month has nothing left pending,
 
 1. persists every confirmed category into `merchant_memory` (`nodes/memory.py`) — that same merchant
    auto-categorizes with `confidence = high` the next time it shows up, in any future month;
-2. compares actual spend per category against `budget.local.yaml` (`nodes/budget.py`) and prints the result;
+2. compares actual spend per category against `budget.local.yaml` (`nodes/budget.py`);
 3. asks the LLM for a short Portuguese summary of the month, grounded in that spend and budget comparison, and
    a comparison against the previous month when data for it exists (`nodes/insights.py`). This step is optional
-   by design — if the LLM is unreachable or returns something unusable, the CLI prints why instead of the
-   summary, and nothing about the month's processing fails because of it.
+   by design — if the LLM is unreachable or returns something unusable, the report notes why instead of the
+   summary, and nothing about the month's processing fails because of it;
+4. assembles everything — total income/expense/net balance, the internal-transfer total kept separate, the full
+   category breakdown, the budget comparison, and the insights summary — into one final report
+   (`nodes/report.py`), which the CLI prints at the end of the run. This is the graph's last node; the printed
+   report is the MVP acceptance target described in the BRD (section 10) — its totals should match a manual sum
+   of the source statements.
 
 ## How the tests drive the graph without a real terminal
 

@@ -17,3 +17,4 @@ class GraphState(TypedDict):
     budget_report: NotRequired[list[dict]]
     insights_summary: NotRequired[str | None]
     insights_error: NotRequired[str | None]
+    report: NotRequired[dict]
