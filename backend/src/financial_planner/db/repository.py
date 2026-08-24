@@ -113,3 +113,18 @@ def list_transactions_by_month(conn: sqlite3.Connection, month_ref: str) -> list
         (month_ref,),
     ).fetchall()
     return [_row_to_transaction(row) for row in rows]
+
+
+def list_pending_review(conn: sqlite3.Connection, month_ref: str) -> list[Transaction]:
+    """Transações ainda não decididas por um humano nem por memória confirmada.
+
+    confidence != 'high' já cobre candidatos a transferência: a feature de
+    categorização nunca atribui confidence='high' a "Transferência interna" (só
+    human_review pode). Ver research.md.
+    """
+    rows = conn.execute(
+        f"SELECT {_TRANSACTION_COLUMNS} FROM transactions "
+        "WHERE month_ref = ? AND confidence != 'high' ORDER BY date",
+        (month_ref,),
+    ).fetchall()
+    return [_row_to_transaction(row) for row in rows]

@@ -12,6 +12,25 @@ Usadas pela feature de categorização (`nodes/categorize.py` → `llm/client.py
 Nenhuma delas é necessária para rodar a suíte de testes — o LLM é sempre mockado nos testes automatizados
 (`tests/fixtures/categorization/llm_double.py`), nunca depende de Ollama rodando.
 
+## Rodando uma revisão mensal via CLI
+
+```sh
+uv run python -m financial_planner.interface.cli 2026-08 /caminho/para/financial-planner.db extrato-bradesco.csv extrato-inter.csv
+```
+
+Importa os extratos, categoriza, e entra num loop de revisão no terminal para toda transação com
+`confidence != high` (inclui candidatos a transferência). Interromper o processo (Ctrl+C) não perde as decisões já
+tomadas — rodar o mesmo comando de novo retoma exatamente do próximo item pendente, graças ao checkpointer do
+LangGraph (`thread_id = month_ref`).
+
+## Como os testes dirigem o grafo sem terminal real
+
+`nodes/review.py` usa `interrupt()` do LangGraph — não dá pra chamá-lo fora de uma execução de grafo. Os testes
+(`tests/test_review.py`) compilam um grafo mínimo (`tests/fixtures/review/graph_harness.py`, só com o node
+`human_review`, sem `detect_and_parse`/`categorize`) e dirigem o loop de interrupção programaticamente: invocam o
+grafo, capturam o payload de cada `interrupt()`, respondem com `Command(resume=...)`, repetindo até o grafo
+terminar. Nenhum teste depende de `input()` real nem de Ollama rodando.
+
 ## Rodando os testes
 
 ```sh
