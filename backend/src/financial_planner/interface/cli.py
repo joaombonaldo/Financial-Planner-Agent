@@ -45,6 +45,13 @@ def run_month(month_ref: str, db_path: str, source_files: list[str]) -> None:
 
     print(f"\nMês {month_ref} processado — nenhuma pendência de revisão restante.")
 
+    for entry in result.get("budget_report", []):
+        marker = "OK" if entry["status"] == "within_budget" else "ESTOUROU"
+        print(
+            f"  [{marker}] {entry['category']}: R$ {entry['actual_spend']:.2f} "
+            f"de R$ {entry['goal']:.2f} (diferença: R$ {entry['difference']:.2f})"
+        )
+
 
 def main() -> None:
     if len(sys.argv) < 3:

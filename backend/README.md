@@ -12,6 +12,19 @@ Used by the categorization feature (`nodes/categorize.py` → `llm/client.py`) t
 None of them are required to run the test suite — the LLM is always mocked in automated tests
 (`tests/fixtures/categorization/llm_double.py`), never depends on Ollama running.
 
+## Setting up your budget goals
+
+`budget_check` (the graph's last node) requires `config/budget.local.yaml` to exist — it's gitignored, personal,
+and never versioned. Copy the example file and fill in your real goals:
+
+```sh
+cp src/financial_planner/config/budget.example.yaml src/financial_planner/config/budget.local.yaml
+```
+
+Category names should match `config/categories.yaml`. If this file is missing, the whole graph run fails with an
+explicit `BudgetNotConfiguredError` — on purpose (see `specs/005-budget-check/spec.md`, FR-008): a missing
+configuration should never look the same as "zero goals, deliberately."
+
 ## Running a monthly review via CLI
 
 ```sh
@@ -21,9 +34,11 @@ uv run python -m financial_planner.interface.cli 2026-08 /path/to/financial-plan
 Imports the statements, categorizes them, and enters a terminal review loop for every transaction with
 `confidence != high` (including transfer candidates). Interrupting the process (Ctrl+C) doesn't lose decisions
 already made — running the same command again resumes exactly from the next pending item, thanks to the LangGraph
-checkpointer (`thread_id = month_ref`). Once the month has nothing left pending, the graph automatically persists
-every confirmed category into `merchant_memory` (`nodes/memory.py`) — that same merchant auto-categorizes with
-`confidence = high` the next time it shows up, in any future month.
+checkpointer (`thread_id = month_ref`). Once the month has nothing left pending, the graph automatically:
+
+1. persists every confirmed category into `merchant_memory` (`nodes/memory.py`) — that same merchant
+   auto-categorizes with `confidence = high` the next time it shows up, in any future month;
+2. compares actual spend per category against `budget.local.yaml` (`nodes/budget.py`) and prints the result.
 
 ## How the tests drive the graph without a real terminal
 

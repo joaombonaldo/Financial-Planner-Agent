@@ -1,0 +1,9 @@
+# Example monthly budget goals. Copy this file to `budget.local.yaml` (gitignored)
+# and replace with your real goals. Category names should match config/categories.yaml.
+
+Moradia: 1500.00
+Alimentação: 800.00
+Transporte: 300.00
+Saúde: 200.00
+Assinaturas: 150.00
+Lazer: 300.00

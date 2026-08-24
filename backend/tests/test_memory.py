@@ -114,9 +114,19 @@ def test_full_chain_remembers_merchant_across_months(tmp_path):
     )
     conn.close()
 
+    import yaml
+
+    budget_path = tmp_path / "budget.local.yaml"
+    budget_path.write_text(yaml.dump({"Transporte": 100.0}), encoding="utf-8")
+
     graph = build_graph(db_path)
     result = graph.invoke(
-        {"source_files": [], "month_ref": "2026-09", "db_path": db_path},
+        {
+            "source_files": [],
+            "month_ref": "2026-09",
+            "db_path": db_path,
+            "budget_path": str(budget_path),
+        },
         config={"configurable": {"thread_id": "2026-09"}},
     )
 
