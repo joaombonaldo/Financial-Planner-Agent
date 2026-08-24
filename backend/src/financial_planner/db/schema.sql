@@ -1,27 +1,27 @@
--- Schema das tabelas transactions e merchant_memory.
--- SQL padrão, sem sintaxe específica de SQLite, para permitir migração futura para
--- Postgres/Supabase sem alterar o schema (Princípio IV da constituição).
+-- Schema for the transactions and merchant_memory tables.
+-- Standard SQL, no SQLite-specific syntax, to allow a future migration to
+-- Postgres/Supabase without changing the schema (Principle IV of the constitution).
 
 CREATE TABLE IF NOT EXISTS transactions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    dedup_hash TEXT NOT NULL UNIQUE,      -- preenchido pela feature de ingestão
-    date TEXT NOT NULL,                   -- preenchido pela feature de ingestão (ISO 8601)
-    description_raw TEXT NOT NULL,        -- preenchido pela feature de ingestão
-    account TEXT NOT NULL,                -- preenchido pela feature de ingestão
-    type TEXT NOT NULL,                   -- preenchido pela feature de ingestão (income | expense)
-    amount REAL NOT NULL,                 -- preenchido pela feature de ingestão
-    month_ref TEXT NOT NULL,              -- preenchido pela feature de ingestão
-    category TEXT,                        -- preenchido por esta feature (categorize)
-    subcategory TEXT,                     -- preenchido por esta feature (categorize)
-    confidence TEXT,                      -- preenchido por esta feature (categorize)
-    installment_id INTEGER                -- feature futura: parcelamentos
+    dedup_hash TEXT NOT NULL UNIQUE,      -- filled in by the ingestion feature
+    date TEXT NOT NULL,                   -- filled in by the ingestion feature (ISO 8601)
+    description_raw TEXT NOT NULL,        -- filled in by the ingestion feature
+    account TEXT NOT NULL,                -- filled in by the ingestion feature
+    type TEXT NOT NULL,                   -- filled in by the ingestion feature (income | expense)
+    amount REAL NOT NULL,                 -- filled in by the ingestion feature
+    month_ref TEXT NOT NULL,              -- filled in by the ingestion feature
+    category TEXT,                        -- filled in by this feature (categorize)
+    subcategory TEXT,                     -- filled in by this feature (categorize)
+    confidence TEXT,                      -- filled in by this feature (categorize)
+    installment_id INTEGER                -- future feature: installments
 );
 
 CREATE INDEX IF NOT EXISTS idx_transactions_dedup_hash ON transactions (dedup_hash);
 
--- Mapeamento merchant -> categoria já confirmada em execuções anteriores.
--- Esta feature (categorize) só lê; gravar é responsabilidade de uma feature futura
--- (update_memory).
+-- Merchant -> category mapping already confirmed in previous runs.
+-- This feature (categorize) only reads it; writing is a future feature's
+-- responsibility (update_memory).
 CREATE TABLE IF NOT EXISTS merchant_memory (
     merchant_key TEXT PRIMARY KEY,
     category TEXT NOT NULL,

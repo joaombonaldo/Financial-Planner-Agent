@@ -1,7 +1,10 @@
-"""Carrega e valida a taxonomia de categorias (config/categories.yaml, Anexo A do BRD).
+"""Loads and validates the category taxonomy (config/categories.yaml, BRD Appendix A).
 
-Qualquer categoria/subcategoria fora desta lista, vinda do LLM, deve cair no fallback
-"Outros"/confidence=low (ver research.md e contracts/llm-categorizer.md).
+Category and subcategory names stay in Portuguese, same as the rest of the runtime
+taxonomy — see config/categories.yaml.
+
+Any category/subcategory outside this list, coming from the LLM, must fall into the
+"Outros" fallback / confidence=low (see research.md and contracts/llm-categorizer.md).
 """
 
 from pathlib import Path

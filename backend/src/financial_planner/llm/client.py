@@ -1,8 +1,8 @@
-"""Único ponto de criação do client de LLM (Princípio III da constituição).
+"""Single point of LLM client creation (Principle III of the constitution).
 
-Hoje Ollama local com Qwen2.5, trocável para Claude/OpenAI via init_chat_model sem
-alterar nenhum node ou módulo de categorização. Não conhece taxonomia nem regras de
-negócio — só sabe conversar com um LLM.
+Today local Ollama with Qwen2.5, swappable to Claude/OpenAI via init_chat_model
+without changing any node or categorization module. Knows nothing about taxonomy or
+business rules — it only knows how to talk to an LLM.
 """
 
 import os

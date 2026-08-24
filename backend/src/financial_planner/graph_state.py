@@ -1,8 +1,8 @@
-"""Estado mínimo que flui entre os nodes do StateGraph.
+"""Minimal state that flows between the StateGraph's nodes.
 
-Deliberadamente pequeno: os nodes buscam e persistem transações direto no banco
-(padrão já estabelecido em ingest/categorize), então o estado do grafo não carrega a
-lista de transações — só o necessário para os nodes saberem o que processar.
+Deliberately small: nodes fetch and persist transactions directly in the database (the
+pattern already established in ingest/categorize), so the graph state doesn't carry
+the transaction list — only what the nodes need to know what to process.
 """
 
 from typing import TypedDict

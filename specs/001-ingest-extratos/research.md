@@ -1,69 +1,67 @@
-# Research: Ingestão de Extratos Bancários
+# Research: Bank Statement Ingestion
 
-Nenhum marcador `NEEDS CLARIFICATION` restou no Technical Context — o BRD (`docs/brd-financial-planner-agent.md`,
-seção 6.3) já valida o formato dos dois bancos a partir de exports reais. Este documento registra as decisões
-técnicas necessárias para implementar as decisões de negócio já tomadas.
+No `NEEDS CLARIFICATION` marker was left in the Technical Context — the BRD (`docs/brd-financial-planner-agent.md`,
+section 6.3) already validates both banks' format from real exports. This document records the technical decisions
+needed to implement the business decisions already made.
 
-## Detecção de linhas de transação
+## Transaction line detection
 
-- **Decision**: testar cada linha do arquivo contra um regex de data no início da linha (`^\d{2}/\d{2}/\d{4};`);
-  só linhas que batem viram transação candidata.
-- **Rationale**: validado contra arquivo real do Bradesco (54 linhas totais → 42 linhas de transação válidas),
-  resolve de forma robusta metadado inicial, header duplicado no meio do arquivo ("Últimos Lancamentos") e rodapé
-  "Total" sem precisar mapear a estrutura exata linha a linha.
-- **Alternatives considered**: `skiprows` fixo por banco — rejeitado por ser frágil a variações de tamanho de
-  metadado e por não lidar com o header duplicado no meio do arquivo do Bradesco.
+- **Decision**: test every line of the file against a date regex at the start of the line
+  (`^\d{2}/\d{2}/\d{4};`); only matching lines become a transaction candidate.
+- **Rationale**: validated against a real Bradesco file (54 total lines → 42 valid transaction lines), robustly
+  handles leading metadata, a header duplicated mid-file ("Últimos Lancamentos"), and a "Total" footer without
+  needing to map the exact line-by-line structure.
+- **Alternatives considered**: a fixed `skiprows` per bank — rejected as fragile to metadata-size variation and
+  unable to handle Bradesco's mid-file duplicated header.
 
-## Detecção automática do banco de origem
+## Automatic source-bank detection
 
-- **Decision**: inspecionar a estrutura de colunas do header antes de aplicar o parser específico — presença de
-  colunas `Crédito (R$)` e `Débito (R$)` separadas + `Docto.` identifica Bradesco; presença de coluna única `Valor`
-  com sinal + linhas de metadado no formato Inter (título/conta/período/saldo) identifica Inter.
-- **Rationale**: os dois formatos são estruturalmente distintos o suficiente (nº e nome de colunas) para não
-  precisar de heurística ambígua; se nenhum dos dois padrões é reconhecido, o arquivo é rejeitado (FR-001, FR-009).
-- **Alternatives considered**: detecção por nome/extensão de arquivo — rejeitado porque o usuário exporta os
-  arquivos manualmente e não há garantia de convenção de nome.
+- **Decision**: inspect the header's column structure before applying the specific parser — the presence of
+  separate `Crédito (R$)` and `Débito (R$)` columns plus `Docto.` identifies Bradesco; the presence of a single
+  signed `Valor` column plus Inter-style metadata lines (title/account/period/balance) identifies Inter.
+- **Rationale**: the two formats are structurally distinct enough (column count and names) to not need an
+  ambiguous heuristic; if neither pattern is recognized, the file is rejected (FR-001, FR-009).
+- **Alternatives considered**: detection by file name/extension — rejected because the user exports the files
+  manually and there's no guaranteed naming convention.
 
-## Normalização de valor e data
+## Amount and date normalization
 
-- **Decision**: valor no formato brasileiro (`1.645,20`) é normalizado removendo separador de milhar (`.`) e
-  trocando `,` por `.` antes de converter para número; data `DD/MM/AAAA` é parseada com formato explícito
-  (equivalente a `strptime("%d/%m/%Y")`), nunca inferência automática de formato.
-- **Rationale**: inferência automática de formato de data (ex.: `dateutil` sem formato explícito) é ambígua para
-  datas como `01/02/2026` (poderia ser lido como mês/dia); formato explícito elimina essa classe de erro.
-- **Alternatives considered**: usar `locale` do sistema para parsing pt-BR — rejeitado por depender de configuração
-  do ambiente de execução, quebrando o Princípio de Simplicidade Pragmática sem necessidade real.
+- **Decision**: an amount in Brazilian format (`1.645,20`) is normalized by removing the thousands separator
+  (`.`) and swapping `,` for `.` before converting to a number; a `DD/MM/YYYY` date is parsed with an explicit
+  format (equivalent to `strptime("%d/%m/%Y")`), never automatic format inference.
+- **Rationale**: automatic date-format inference (e.g. `dateutil` without an explicit format) is ambiguous for
+  dates like `01/02/2026` (could be read as month/day); an explicit format eliminates this whole class of error.
+- **Alternatives considered**: using the system `locale` for pt-BR parsing — rejected because it depends on the
+  runtime environment's configuration, breaking the Pragmatic Simplicity principle with no real need.
 
-## Hash de deduplicação
+## Deduplication hash
 
-- **Decision**: hash determinístico (ex.: SHA-256) sobre a concatenação normalizada de
-  `date + description_raw + amount + account`, calculado após a normalização de valor/data (não sobre o texto cru
-  do CSV).
-- **Rationale**: calcular sobre valores já normalizados garante que a mesma transação gere o mesmo hash mesmo que
-  aaparência textual bruta varie ligeiramente entre exports (ex.: espaço extra); atende FR-006 e Princípio VII da
-  constituição.
-- **Alternatives considered**: usar `Docto.` do Bradesco como identificador nativo — rejeitado porque o Inter não
-  tem equivalente (BRD 6.3), então não serve como estratégia única para os dois bancos.
+- **Decision**: a deterministic hash (e.g. SHA-256) over the normalized concatenation of
+  `date + description_raw + amount + account`, computed after amount/date normalization (not over the raw CSV
+  text).
+- **Rationale**: computing it over already-normalized values guarantees the same transaction produces the same
+  hash even if the raw textual appearance varies slightly between exports (e.g. an extra space); satisfies FR-006
+  and Principle VII of the constitution.
+- **Alternatives considered**: using Bradesco's `Docto.` as a native identifier — rejected because Inter has no
+  equivalent (BRD 6.3), so it can't serve as the single strategy for both banks.
 
-## Checagem de saldo como sanidade
+## Balance check as a sanity net
 
-- **Decision**: comparar, em ordem cronológica dentro do arquivo, o saldo declarado de uma linha contra
-  `saldo anterior ± valor da transação atual`; divergências (fora de uma tolerância de arredondamento, ex.:
-  R$ 0,01) geram um aviso reportado ao usuário (FR-009), mas não abortam a importação das transações já
-  reconhecidas corretamente.
-- **Rationale**: é uma checagem de qualidade de dado, não uma regra de negócio que impede o fluxo — o objetivo é
-  visibilidade (Princípio de nunca falhar silenciosamente), não bloqueio automático de todo o arquivo por causa de
-  uma linha suspeita.
-- **Alternatives considered**: abortar a importação inteira em caso de qualquer divergência de saldo — rejeitado
-  por ser desproporcional; um único erro de leitura de linha não deveria descartar um mês inteiro de transações
-  corretas.
+- **Decision**: compare, in chronological order within the file, a row's declared balance against
+  `previous balance ± current transaction amount`; discrepancies (beyond a rounding tolerance, e.g. R$ 0.01)
+  produce a warning reported to the user (FR-009), but don't abort importing the transactions already recognized
+  correctly.
+- **Rationale**: it's a data-quality check, not a business rule that blocks the flow — the goal is visibility
+  (the principle of never failing silently), not automatically blocking the whole file over one suspicious line.
+- **Alternatives considered**: aborting the entire import on any balance discrepancy — rejected as disproportionate;
+  a single line-reading error shouldn't discard an entire month of correct transactions.
 
-## Estratégia de testes
+## Testing strategy
 
-- **Decision**: fixtures pequenas (2-3 linhas) por banco cobrindo o caso feliz e os casos de borda documentados na
-  spec (BOM, header duplicado, `Descrição` vazia, linha em branco, rodapé "Total"); testes determinísticos, sem
-  rede nem LLM.
-- **Rationale**: alinhado à seção "Padrões de Teste" da constituição; parsers são puros o suficiente para não
-  precisar de mocks.
-- **Alternatives considered**: usar os arquivos reais completos como fixture de teste — rejeitado porque dado real
-  nunca entra no repositório (constituição, seção "Proteção de Dados Sensíveis").
+- **Decision**: small fixtures (2-3 lines) per bank covering the happy path and the edge cases documented in the
+  spec (BOM, duplicated header, blank `Descrição`, blank line, "Total" footer); deterministic tests, no network
+  or LLM.
+- **Rationale**: aligned with the constitution's "Testing Standards" section; parsers are pure enough to not need
+  mocks.
+- **Alternatives considered**: using the full real files as test fixtures — rejected because real data never
+  enters the repository (constitution, "Sensitive Data Protection" section).

@@ -1,4 +1,4 @@
-# Implementation Plan: Categorização de Transações
+# Implementation Plan: Transaction Categorization
 
 **Branch**: `002-categorize-transacoes` | **Date**: 2026-08-23 | **Spec**: [spec.md](./spec.md)
 
@@ -8,56 +8,56 @@
 
 ## Summary
 
-Implementar o node `categorize`: para cada transação normalizada pela feature de ingestão (001), verificar se o
-merchant já tem categoria confirmada em memória (`confidence = high`, sem LLM); se o padrão de transferência
-(PIX/TED/DOC) tiver um valor espelhado em outra conta do usuário dentro de ±2 dias, sugerir "Transferência interna"
-sem excluir do total; caso contrário, chamar o LLM (via abstração trocável) para sugerir categoria/subcategoria da
-taxonomia configurada, com `confidence` `medium`/`low` e fallback para "Outros" quando a resposta não corresponder
-à taxonomia. Persistir categoria/subcategoria/confiança na transação, pronta para a revisão humana (feature
-futura).
+Implement the `categorize` node: for each transaction normalized by the ingestion feature (001), check whether the
+merchant already has a confirmed category in memory (`confidence = high`, no LLM); if the transfer pattern
+(PIX/TED/DOC) has a mirrored amount in another of the user's accounts within ±2 days, suggest "Transferência
+interna" without excluding it from the total; otherwise, call the LLM (via a swappable abstraction) to suggest a
+category/subcategory from the configured taxonomy, with `confidence` `medium`/`low` and a fallback to "Outros"
+when the response doesn't match the taxonomy. Persist category/subcategory/confidence on the transaction, ready
+for human review (a future feature).
 
 ## Technical Context
 
 **Language/Version**: Python 3.12
 
-**Primary Dependencies**: `langchain-ollama` (via `init_chat_model` — abstração trocável de LLM), `pyyaml`
-(taxonomia em `config/categories.yaml`), `sqlite3` (stdlib, via `db/repository.py`)
+**Primary Dependencies**: `langchain-ollama` (via `init_chat_model` — swappable LLM abstraction), `pyyaml`
+(taxonomy in `config/categories.yaml`), `sqlite3` (stdlib, via `db/repository.py`)
 
-**Storage**: SQLite — estende a tabela `transactions` já criada pela feature 001 (preenche `category`,
-`subcategory`, `confidence`, ainda nulos) e adiciona a tabela `merchant_memory` (mapeamento merchant → categoria
-confirmada). Esta feature só lê `merchant_memory`; gravar nela é responsabilidade de uma feature futura
+**Storage**: SQLite — extends the `transactions` table already created by feature 001 (fills in `category`,
+`subcategory`, `confidence`, still null) and adds a `merchant_memory` table (merchant → confirmed category
+mapping). This feature only reads `merchant_memory`; writing to it is a future feature's responsibility
 (`update_memory`).
 
-**Testing**: pytest, com o LLM sempre mockado (constituição — "O grafo é testável com LLM mockado, sem depender do
-Ollama rodando"); fixtures determinísticas para merchant conhecido, merchant novo, resposta fora da taxonomia e
-par de transferência espelhada.
+**Testing**: pytest, with the LLM always mocked (constitution — "The graph is testable with a mocked LLM, without
+depending on Ollama running"); deterministic fixtures for a known merchant, a new merchant, a response outside
+the taxonomy, and a mirrored transfer pair.
 
-**Target Platform**: CLI local (macOS/Linux), execução mensal single-user
+**Target Platform**: local CLI (macOS/Linux), single-user monthly run
 
-**Project Type**: Projeto único dentro do monorepo (`backend/`)
+**Project Type**: single project inside the monorepo (`backend/`)
 
-**Performance Goals**: N/A — mesma ordem de grandeza de volume da feature 001 (dezenas de transações/mês)
+**Performance Goals**: N/A — same order of magnitude of volume as feature 001 (dozens of transactions/month)
 
-**Constraints**: Não pode depender de um servidor Ollama real rodando para os testes (LLM sempre mockado nos
-testes); a categoria retornada pelo LLM nunca pode resultar em `confidence = high` (Princípio VI/FR-006)
+**Constraints**: Must not depend on a real Ollama server running for tests (LLM always mocked in tests); the
+category returned by the LLM can never result in `confidence = high` (Principle VI/FR-006)
 
-**Scale/Scope**: ~1 mês de transações por execução, 2 contas conhecidas (Bradesco, Inter)
+**Scale/Scope**: ~1 month of transactions per run, 2 known accounts (Bradesco, Inter)
 
 ## Constitution Check
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-| Princípio | Aplicação nesta feature | Status |
+| Principle | Application in this feature | Status |
 |---|---|---|
-| I. Simplicidade Pragmática | Taxonomia como config YAML, sem motor de regras genérico; detecção de transferência é uma checagem direta (padrão + janela de dias), não um sistema de matching genérico | PASS |
-| II. Nodes Isolados de Infraestrutura | `nodes/categorize.py` orquestra; acesso ao LLM fica em `llm/client.py`, acesso a banco em `db/repository.py` — node não chama `init_chat_model` nem `sqlite3` diretamente | PASS |
-| III. LLM Trocável por Abstração | Núcleo da feature — `llm/client.py` usa `init_chat_model`, hoje Ollama/Qwen2.5, trocável sem alterar `nodes/categorize.py` | PASS |
-| IV. Persistência Portável | `merchant_memory` e o update de `transactions` usam SQL padrão | PASS |
-| V. Revisão Humana Obrigatória | Respeitada por design: `confidence` médio/baixo e candidatos a transferência nunca são aplicados como definitivos por esta feature — ficam para `human_review` (feature futura) | PASS |
-| VI. Confiança Categórica | Central — FR-006/FR-009: `high` só via memória, LLM nunca retorna `high` diretamente | PASS |
-| VII. Deduplicação Determinística | N/A — esta feature não recalcula dedup (já resolvido pela ingestão) | N/A |
+| I. Pragmatic Simplicity | Taxonomy as YAML config, no generic rules engine; transfer detection is a direct check (pattern + day window), not a generic matching system | PASS |
+| II. Nodes Isolated from Infrastructure | `nodes/categorize.py` orchestrates; LLM access lives in `llm/client.py`, database access in `db/repository.py` — the node never calls `init_chat_model` or `sqlite3` directly | PASS |
+| III. Swappable LLM via Abstraction | Core of this feature — `llm/client.py` uses `init_chat_model`, today Ollama/Qwen2.5, swappable without changing `nodes/categorize.py` | PASS |
+| IV. Portable Persistence | `merchant_memory` and the `transactions` update use standard SQL | PASS |
+| V. Mandatory Human Review | Respected by design: medium/low `confidence` and transfer candidates are never applied as final by this feature — they're left for `human_review` (a future feature) | PASS |
+| VI. Categorical Confidence | Central — FR-006/FR-009: `high` only via memory, the LLM never returns `high` directly | PASS |
+| VII. Deterministic Deduplication | N/A — this feature doesn't recompute dedup (already resolved by ingestion) | N/A |
 
-Nenhuma violação — Complexity Tracking não se aplica.
+No violations — Complexity Tracking doesn't apply.
 
 ## Project Structure
 
@@ -79,32 +79,32 @@ specs/002-categorize-transacoes/
 backend/
 ├── src/financial_planner/
 │   ├── nodes/
-│   │   └── categorize.py            # node categorize — orquestra memória + transferência + LLM
+│   │   └── categorize.py            # categorize node — orchestrates memory + transfer + LLM
 │   ├── llm/
-│   │   └── client.py                # abstração trocável do LLM (init_chat_model)
+│   │   └── client.py                # swappable LLM abstraction (init_chat_model)
 │   ├── categorization/
-│   │   ├── taxonomy.py              # carrega/valida config/categories.yaml, fallback "Outros"
-│   │   ├── merchant_memory.py       # leitura de merchant_memory via db/repository.py
-│   │   ├── transfer_detection.py    # padrão PIX/TED/DOC + valor espelhado em ±2 dias
-│   │   └── llm_categorizer.py       # chama llm/client.py, mapeia resposta para a taxonomia
+│   │   ├── taxonomy.py              # loads/validates config/categories.yaml, "Outros" fallback
+│   │   ├── merchant_memory.py       # reads merchant_memory via db/repository.py
+│   │   ├── transfer_detection.py    # PIX/TED/DOC pattern + mirrored amount within ±2 days
+│   │   └── llm_categorizer.py       # calls llm/client.py, maps the response to the taxonomy
 │   ├── config/
-│   │   └── categories.yaml          # taxonomia inicial (Anexo A do BRD)
+│   │   └── categories.yaml          # initial taxonomy (BRD Appendix A)
 │   └── db/
-│       ├── schema.sql                # + tabela merchant_memory
-│       └── repository.py             # + funções de leitura de merchant_memory e update de transação
+│       ├── schema.sql                # + merchant_memory table
+│       └── repository.py             # + functions to read merchant_memory and update a transaction
 └── tests/
     ├── fixtures/
-    │   └── categorization/           # transações sintéticas: merchant conhecido, novo, fora da taxonomia, par de transferência
+    │   └── categorization/           # synthetic transactions: known merchant, new, outside the taxonomy, transfer pair
     └── test_categorize.py
 
-frontend/                             # não usado nesta fase
+frontend/                             # not used at this stage
 ```
 
-**Structure Decision**: Reaproveita a estrutura do `backend/` criada pela feature 001. Novo módulo
-`categorization/` concentra a lógica de domínio (taxonomia, memória, detecção de transferência, chamada ao LLM);
-`llm/client.py` isola a abstração de LLM (Princípio III); `nodes/categorize.py` só orquestra, sem tocar
-`init_chat_model` nem `sqlite3` diretamente (Princípio II).
+**Structure Decision**: Reuses the `backend/` structure created by feature 001. The new `categorization/` module
+holds the domain logic (taxonomy, memory, transfer detection, LLM call); `llm/client.py` isolates the LLM
+abstraction (Principle III); `nodes/categorize.py` only orchestrates, never touching `init_chat_model` or
+`sqlite3` directly (Principle II).
 
 ## Complexity Tracking
 
-*Não aplicável — nenhuma violação de constituição identificada.*
+*Not applicable — no constitution violations identified.*

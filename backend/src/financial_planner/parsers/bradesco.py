@@ -1,9 +1,9 @@
-"""Adapter de parsing para exports do Bradesco.
+"""Parsing adapter for Bradesco exports.
 
-Formato (BRD 6.1/6.3): UTF-8 com BOM, separador ';', colunas
-Data;Histórico;Docto.;Crédito (R$);Débito (R$);Saldo (R$). Metadado na linha 1,
-possível bloco duplicado "Últimos Lancamentos" no meio do arquivo e rodapé "Total" —
-todos filtrados por `filter_transaction_lines` (nenhum começa com uma data).
+Format (BRD 6.1/6.3): UTF-8 with BOM, ';' separator, columns
+Data;Histórico;Docto.;Crédito (R$);Débito (R$);Saldo (R$). Metadata on line 1, a
+possible duplicated "Últimos Lancamentos" block mid-file, and a "Total" footer — all
+filtered out by `filter_transaction_lines` (none of them start with a date).
 """
 
 from pathlib import Path
@@ -16,27 +16,27 @@ from .normalize import month_ref, parse_brl_amount, parse_brl_date
 
 
 def parse(path: str) -> list[Transaction]:
-    # utf-8-sig lida com o BOM do Bradesco e também funciona normalmente sem BOM.
+    # utf-8-sig handles Bradesco's BOM and also works fine without one.
     text = Path(path).read_text(encoding="utf-8-sig")
     tx_lines = filter_transaction_lines(text.splitlines())
 
     transactions: list[Transaction] = []
     for line in tx_lines:
-        date_str, historico, _docto, credito, debito, _saldo = line.split(";")[:6]
+        date_str, description_raw, _doc_number, credit, debit, _balance = line.split(";")[:6]
 
         transaction_date = parse_brl_date(date_str)
-        description = historico.strip()
+        description = description_raw.strip()
 
-        if credito.strip():
-            amount = parse_brl_amount(credito)
+        if credit.strip():
+            amount = parse_brl_amount(credit)
             tx_type = TransactionType.INCOME
-        elif debito.strip():
-            amount = parse_brl_amount(debito)
+        elif debit.strip():
+            amount = parse_brl_amount(debit)
             tx_type = TransactionType.EXPENSE
         else:
-            # Linha administrativa sem movimentação real (ex.: "COD. LANC. 0" com as
-            # duas colunas em branco/espaço) — observada em exports reais. Saldo não
-            # muda; valor zero não afeta totais independente do type escolhido.
+            # Administrative line with no real movement (e.g. "COD. LANC. 0" with
+            # both columns blank/whitespace) — observed in real exports. Balance
+            # doesn't change; a zero amount doesn't affect totals either way.
             amount = 0.0
             tx_type = TransactionType.EXPENSE
 

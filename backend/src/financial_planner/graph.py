@@ -1,7 +1,7 @@
-"""Monta e compila o StateGraph: detect_and_parse -> categorize -> human_review.
+"""Builds and compiles the StateGraph: detect_and_parse -> categorize -> human_review.
 
-human_review usa uma aresta condicional de self-loop (em vez de um laço interno) para
-tratar múltiplos itens pendentes — ver nodes/review.py para o motivo.
+human_review uses a self-loop conditional edge (instead of an internal loop) to handle
+multiple pending items — see nodes/review.py for why.
 """
 
 import sqlite3

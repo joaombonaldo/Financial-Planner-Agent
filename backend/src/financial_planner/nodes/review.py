@@ -1,17 +1,20 @@
-"""Node human_review: revisão humana via interrupt(), um item por vez.
+"""Node human_review: human review via interrupt(), one item at a time.
 
-Cada invocação deste node trata no máximo um item pendente. Repetir para os próximos
-itens é responsabilidade da aresta condicional em graph.py (self-loop), não de um laço
-interno chamando interrupt() para itens diferentes.
+Each invocation of this node handles at most one pending item. Repeating for the next
+items is the responsibility of the conditional edge in graph.py (self-loop), not of an
+internal loop calling interrupt() for different items.
 
-Por quê: a lista de pendências (list_pending_review) muda a cada item persistido, e o
-replay de interrupt() do LangGraph casa respostas por ordem de chamada dentro da mesma
-execução do node, não pelo conteúdo perguntado. Se a lista fosse reconsultada dentro de
-um laço que chama interrupt() várias vezes no mesmo node, um replay entre itens
-diferentes poderia aplicar a resposta de um item ao item errado. Tratando um item por
-invocação, o único laço interno que existe é o de "resposta inválida, perguntar nesse
-mesmo item de novo" — que nunca muda a lista de pendências entre suas chamadas (nenhum
-persist acontece até a resposta ser válida), então não sofre desse problema.
+Why: the pending list (list_pending_review) changes with every item persisted, and
+LangGraph's interrupt() replay matches responses by call order within the same node
+run, not by the content asked. If the list were re-queried inside a loop that calls
+interrupt() multiple times in the same node, a replay across different items could
+apply one item's answer to the wrong item. By handling one item per invocation, the
+only internal loop that exists is "invalid response, ask about the same item again" —
+which never changes the pending list between its calls (no persist happens until the
+response is valid), so it doesn't suffer from that problem.
+
+Response keywords ("aceitar", "confirmar") and error messages shown to the user stay
+in Portuguese, same as the CLI — the app's actual runtime language.
 """
 
 from langgraph.types import interrupt

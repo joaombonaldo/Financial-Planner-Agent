@@ -1,51 +1,51 @@
-# Data Model: Categorização de Transações
+# Data Model: Transaction Categorization
 
-## Transação (campos preenchidos por esta feature)
+## Transaction (fields filled in by this feature)
 
-Estende o schema já criado pela feature 001 (`transactions`). Esta feature preenche os campos que a ingestão
-deixou `NULL`:
+Extends the schema already created by feature 001 (`transactions`). This feature fills in the fields that
+ingestion left `NULL`:
 
-| Campo | Tipo | Origem / regra |
+| Field | Type | Source / rule |
 |---|---|---|
-| `category` | string | "Transferência interna" (candidata), categoria mapeada em memória, categoria sugerida pelo LLM, ou "Outros" (fallback) |
-| `subcategory` | string, nullable | idem, quando aplicável (transferência e "Outros" podem não ter subcategoria) |
-| `confidence` | enum: `high`\|`medium`\|`low` | `high` somente via merchant memory; LLM e candidatos a transferência nunca produzem `high` |
+| `category` | string | "Transferência interna" (candidate), a category mapped from memory, a category suggested by the LLM, or "Outros" (fallback) |
+| `subcategory` | string, nullable | same, when applicable (transfer and "Outros" may have no subcategory) |
+| `confidence` | enum: `high`\|`medium`\|`low` | `high` only via merchant memory; the LLM and transfer candidates never produce `high` |
 
-Campos já preenchidos pela feature 001 (`dedup_hash`, `date`, `description_raw`, `account`, `type`, `amount`,
-`month_ref`) são apenas lidos, nunca alterados por esta feature. `installment_id` continua fora do escopo.
+Fields already filled in by feature 001 (`dedup_hash`, `date`, `description_raw`, `account`, `type`, `amount`,
+`month_ref`) are only read, never changed by this feature. `installment_id` remains out of scope.
 
 ## Merchant Memory
 
-Nova tabela, só leitura nesta feature (escrita é responsabilidade de uma feature futura, `update_memory`).
+New table, read-only in this feature (writing is a future feature's responsibility, `update_memory`).
 
-| Campo | Tipo | Descrição |
+| Field | Type | Description |
 |---|---|---|
-| `merchant_key` | string, PK | texto normalizado (trim + lowercase) de `description_raw` |
-| `category` | string | categoria confirmada em execução anterior |
-| `subcategory` | string, nullable | subcategoria confirmada, quando aplicável |
+| `merchant_key` | string, PK | normalized (trim + lowercase) text of `description_raw` |
+| `category` | string | category confirmed in a previous run |
+| `subcategory` | string, nullable | confirmed subcategory, when applicable |
 
-**Validação**: se `merchant_key` não existe na tabela, a transação segue para detecção de transferência / LLM
-(não é um erro — é o caso esperado de merchant novo, ver User Story 2).
+**Validation**: if `merchant_key` doesn't exist in the table, the transaction moves on to transfer detection / the
+LLM (not an error — it's the expected case for a new merchant, see User Story 2).
 
-## Taxonomia
+## Taxonomy
 
-Não é uma tabela — é configuração carregada de `config/categories.yaml` (Anexo A do BRD).
+Not a table — it's configuration loaded from `config/categories.yaml` (BRD Appendix A).
 
-| Campo | Tipo | Descrição |
+| Field | Type | Description |
 |---|---|---|
-| `category` | string | nome da categoria (ex.: "Alimentação") |
-| `subcategories` | list[string] | subcategorias válidas daquela categoria |
+| `category` | string | category name (e.g. "Alimentação") |
+| `subcategories` | list[string] | valid subcategories for that category |
 
-Duas entradas especiais sempre presentes: `"Outros"` (fallback, sem subcategoria obrigatória) e `"Transferência
-interna"` (usada só pela detecção de transferência, nunca sugerida pelo LLM).
+Two special entries are always present: `"Outros"` (fallback, no subcategory required) and `"Transferência
+interna"` (used only by transfer detection, never suggested by the LLM).
 
-**Validação**: qualquer categoria/subcategoria fora desta lista, vinda do LLM, é substituída por `"Outros"` /
-`confidence = low` (ver research.md).
+**Validation**: any category/subcategory outside this list, coming from the LLM, is replaced with `"Outros"` /
+`confidence = low` (see research.md).
 
-## Candidato a Transferência (conceito, não é uma tabela própria)
+## Transfer Candidate (a concept, not its own table)
 
-Resultado da checagem de padrão + valor espelhado (FR-007), expresso como a combinação:
-`category = "Transferência interna"`, `confidence = medium` (nunca `high` — sempre pendente de confirmação humana,
-nunca `low`, porque é um match estrutural direto, não um palpite). Não existe uma entidade "TransferCandidate"
-separada — a sinalização vive inteiramente nos campos da própria transação. A confirmação (ou rejeição) da
-sugestão fica para uma feature futura (`human_review`).
+The result of the pattern + mirrored-amount check (FR-007), expressed as the combination:
+`category = "Transferência interna"`, `confidence = medium` (never `high` — always pending human confirmation,
+never `low`, because it's a direct structural match, not a guess). There's no separate "TransferCandidate"
+entity — the flag lives entirely in the transaction's own fields. Confirming (or rejecting) the suggestion is
+left to a future feature (`human_review`).

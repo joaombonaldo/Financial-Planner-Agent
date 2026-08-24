@@ -1,55 +1,55 @@
-# Quickstart: Validando a Revisão Humana
+# Quickstart: Validating Human Review
 
-Guia de validação end-to-end desta feature. Sem código de implementação — apenas os passos para provar que o
-comportamento da spec funciona.
+End-to-end validation guide for this feature. No implementation code — just the steps to prove the spec's
+behavior works.
 
-## Pré-requisitos
+## Prerequisites
 
-- Ambiente `backend/` com dependências resolvidas (`uv sync`), incluindo `langgraph-checkpoint-sqlite`
-- Fixtures sintéticas em `backend/tests/fixtures/review/` (transações com `confidence` variada, incluindo pelo
-  menos um candidato a transferência)
-- Nos testes automatizados, o grafo é dirigido programaticamente (sem terminal real) — ver research.md
+- `backend/` environment with dependencies resolved (`uv sync`), including `langgraph-checkpoint-sqlite`
+- Synthetic fixtures in `backend/tests/fixtures/review/` (transactions with varying `confidence`, including at
+  least one transfer candidate)
+- In automated tests, the graph is driven programmatically (no real terminal) — see research.md
 
-## Cenário 1 — Revisar e corrigir confiança média/baixa (User Story 1)
+## Scenario 1 — Review and correct medium/low confidence (User Story 1)
 
-1. Popular o banco com transações `confidence = medium` e `confidence = low` para um mês.
-2. Invocar o grafo para esse mês; capturar o payload do primeiro `interrupt()`.
-3. Responder `"aceitar"` para o item de confiança média; verificar que a transação mantém a categoria sugerida
-   com `confidence = high`.
-4. Responder com uma categoria diferente (`"Alimentação|Mercado"`) para o item de confiança baixa; verificar que
-   a transação recebe essa categoria com `confidence = high`.
-5. Rodar o grafo para um mês onde todas as transações já são `confidence = high`; verificar que ele termina sem
-   nenhum `interrupt()`.
-
-**Resultado esperado**: toda transação pendente termina revisada e com `confidence = high`; um mês sem pendências
-não interrompe.
-
-## Cenário 2 — Confirmar ou rejeitar transferência (User Story 2)
-
-1. Popular o banco com uma transação `category = "Transferência interna"`, `confidence = medium`.
-2. Invocar o grafo; responder `"confirmar"` — verificar que a categoria permanece "Transferência interna" com
+1. Populate the database with `confidence = medium` and `confidence = low` transactions for a month.
+2. Invoke the graph for that month; capture the first `interrupt()`'s payload.
+3. Respond `"aceitar"` for the medium-confidence item; verify the transaction keeps the suggested category with
    `confidence = high`.
-3. Repetir com outra transação equivalente, respondendo com uma categoria diferente (ex.:
-   `"Alimentação|Restaurante/Delivery"`) — verificar que ela substitui "Transferência interna" pela categoria
-   informada, com `confidence = high`.
+4. Respond with a different category (`"Alimentação|Mercado"`) for the low-confidence item; verify the
+   transaction gets that category with `confidence = high`.
+5. Run the graph for a month where every transaction is already `confidence = high`; verify it finishes with no
+   `interrupt()` at all.
 
-**Resultado esperado**: nenhum candidato a transferência fica sem decisão explícita.
+**Expected result**: every pending transaction ends up reviewed and with `confidence = high`; a month with
+nothing pending doesn't interrupt.
 
-## Cenário 3 — Retomar sessão interrompida (User Story 3)
+## Scenario 2 — Confirm or reject a transfer (User Story 2)
 
-1. Popular o banco com 3 transações pendentes.
-2. Invocar o grafo, responder ao primeiro `interrupt()`, e então parar de avançar o grafo (simulando uma
-   interrupção de processo — não chamar `.stream()`/`.invoke()` de novo ainda).
-3. Verificar diretamente no banco que a primeira decisão já está persistida (`confidence = high`), mesmo sem o
-   grafo ter terminado.
-4. Invocar o grafo de novo com o mesmo `thread_id` (retomando via checkpointer); verificar que o primeiro item
-   não é apresentado de novo — o próximo `interrupt()` já é o segundo item pendente.
+1. Populate the database with a transaction `category = "Transferência interna"`, `confidence = medium`.
+2. Invoke the graph; respond `"confirmar"` — verify the category stays "Transferência interna" with
+   `confidence = high`.
+3. Repeat with another equivalent transaction, responding with a different category (e.g.
+   `"Alimentação|Restaurante/Delivery"`) — verify it replaces "Transferência interna" with the provided category,
+   with `confidence = high`.
 
-**Resultado esperado**: nenhuma decisão já tomada é perdida ou repetida ao retomar.
+**Expected result**: no transfer candidate is left without an explicit decision.
 
-## Checklist de saída
+## Scenario 3 — Resume an interrupted session (User Story 3)
 
-- [ ] Cenário 1 confirma aceitar/corrigir e o caso "nada pendente, sem interrupção"
-- [ ] Cenário 2 confirma confirmar/rejeitar transferência
-- [ ] Cenário 3 confirma que retomar não perde nem repete decisões
-- [ ] Nenhum teste depende de terminal real nem de dado financeiro real
+1. Populate the database with 3 pending transactions.
+2. Invoke the graph, respond to the first `interrupt()`, and then stop advancing the graph (simulating a process
+   interruption — don't call `.stream()`/`.invoke()` again yet).
+3. Verify directly in the database that the first decision is already persisted (`confidence = high`), even
+   though the graph hasn't finished.
+4. Invoke the graph again with the same `thread_id` (resuming via the checkpointer); verify the first item isn't
+   presented again — the next `interrupt()` is already the second pending item.
+
+**Expected result**: no decision already made is lost or repeated on resume.
+
+## Exit checklist
+
+- [ ] Scenario 1 confirms accept/correct and the "nothing pending, no interruption" case
+- [ ] Scenario 2 confirms confirming/rejecting a transfer
+- [ ] Scenario 3 confirms resuming neither loses nor repeats a decision
+- [ ] No test depends on a real terminal nor on real financial data

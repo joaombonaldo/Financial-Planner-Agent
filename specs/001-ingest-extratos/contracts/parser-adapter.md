@@ -1,39 +1,37 @@
-# Contract: Adapter de Parser por Banco
+# Contract: Per-Bank Parser Adapter
 
-Interface interna que cada adapter de banco (`parsers/bradesco.py`, `parsers/inter.py`) deve implementar. Consumida
-por `parsers/detect.py` (seleção do adapter) e por `nodes/ingest.py` (orquestração) — nunca diretamente por outros
-nodes, conforme Princípio II da constituição.
+Internal interface that each bank adapter (`parsers/bradesco.py`, `parsers/inter.py`) must implement. Consumed by
+`parsers/detect.py` (adapter selection) and by `nodes/ingest.py` (orchestration) — never directly by other nodes,
+per Principle II of the constitution.
 
-## Detecção de banco
+## Bank detection
 
-**Entrada**: conteúdo bruto (ou caminho) do arquivo de extrato.
+**Input**: raw content (or path) of the statement file.
 
-**Saída**: identificador do banco (`bradesco` | `inter`) ou sinal explícito de "não reconhecido".
+**Output**: bank identifier (`bradesco` | `inter`) or an explicit "not recognized" signal.
 
-**Regra**: baseada na estrutura de colunas do header (ver research.md — "Detecção automática do banco de origem").
-Nunca lança exceção silenciosa; um arquivo não reconhecido é um resultado explícito, não uma falha de parsing
-tratada como sucesso vazio.
+**Rule**: based on the header's column structure (see research.md — "Automatic source-bank detection"). Never
+throws a silent exception; an unrecognized file is an explicit result, not a parsing failure treated as an empty
+success.
 
-## Parsing por adapter
+## Per-adapter parsing
 
-**Entrada**: conteúdo bruto (ou caminho) do arquivo de extrato, já identificado como pertencente a um banco
-específico.
+**Input**: raw content (or path) of the statement file, already identified as belonging to a specific bank.
 
-**Saída**: lista de `Transação normalizada` (subset de campos definido em `data-model.md`) + informações
-necessárias para montar o `ImportResult` (linhas de saldo lidas, na ordem do arquivo, para a checagem de sanidade).
+**Output**: list of `Normalized transaction` (field subset defined in `data-model.md`) + the information needed to
+build the `ImportResult` (balance values read, in file order, for the sanity check).
 
-**Garantias que o contrato exige de qualquer adapter**:
-- Linhas de metadado, headers repetidos e rodapé nunca aparecem na lista de transações retornada.
-- `description_raw` nunca é vazio (aplica fallback `Histórico` quando a coluna primária de descrição estiver em
-  branco).
-- `amount` sempre positivo; a direção (entrada/saída) vai inteiramente no campo `type`.
-- `date` e `amount` já normalizados para o formato canônico (ISO date, decimal) — o chamador nunca recebe formato
-  bruto do banco.
-- A ordem das transações retornadas preserva a ordem do arquivo de origem (necessário para a checagem de saldo
-  sequencial).
+**Guarantees the contract requires from any adapter**:
+- Metadata lines, repeated headers, and footers never appear in the returned transaction list.
+- `description_raw` is never empty (applies the `Histórico` fallback when the primary description column is
+  blank).
+- `amount` is always positive; direction (income/expense) lives entirely in the `type` field.
+- `date` and `amount` are already normalized to the canonical format (ISO date, decimal) — the caller never
+  receives the bank's raw format.
+- The order of returned transactions preserves the source file's order (needed for the sequential balance check).
 
-## Uso pelo node `detect_and_parse`
+## Usage by the `detect_and_parse` node
 
-O node (`nodes/ingest.py`) apenas orquestra: chama a detecção de banco, seleciona o adapter correspondente, chama o
-parsing, e delega a checagem de `dedup_hash` + persistência para `db/repository.py`. O node não lê arquivo nem
-formata CSV diretamente — essa é a fronteira que o Princípio II da constituição protege.
+The node (`nodes/ingest.py`) only orchestrates: it calls bank detection, selects the matching adapter, calls
+parsing, and delegates the `dedup_hash` check + persistence to `db/repository.py`. The node never reads the file
+nor formats CSV directly — that's the boundary Principle II of the constitution protects.

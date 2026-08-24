@@ -1,9 +1,9 @@
-"""Grafo mínimo para testar nodes/review.py isoladamente.
+"""Minimal graph for testing nodes/review.py in isolation.
 
-Contém só o node human_review (com o mesmo self-loop condicional de graph.py) — evita
-que detect_and_parse/categorize rodem durante o teste e sobrescrevam os dados já
-semeados pela fixture (categorize chamaria o LLM real, o que a constituição proíbe em
-teste automatizado).
+Contains only the human_review node (with the same conditional self-loop as
+graph.py) — this keeps detect_and_parse/categorize from running during the test and
+overwriting the data already seeded by the fixture (categorize would call the real
+LLM, which the constitution forbids in automated tests).
 """
 
 import sqlite3
@@ -46,9 +46,9 @@ def build_review_only_graph(db_path: str):
 
 
 def drive_review(graph, thread_id: str, month_ref: str, db_path: str, answers: list[str]) -> list[dict]:
-    """Roda o grafo, respondendo cada interrupt() na ordem de `answers`.
+    """Runs the graph, answering each interrupt() in the order given by `answers`.
 
-    Retorna os payloads de cada interrupt() encontrado, na ordem em que apareceram.
+    Returns the payloads of each interrupt() encountered, in the order they appeared.
     """
     config = {"configurable": {"thread_id": thread_id}}
     payloads: list[dict] = []

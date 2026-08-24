@@ -1,4 +1,4 @@
-# Feature Specification: Revisão Humana de Transações
+# Feature Specification: Human Review of Transactions
 
 **Feature Branch**: `003-human-review`
 
@@ -6,151 +6,151 @@
 
 **Status**: Draft
 
-**Input**: User description: "Revisão humana (node `human_review` do grafo): interrompe o processamento sempre que
-houver transações de confiança média/baixa ou candidatas a transferência entre contas próprias, apresenta cada uma
-para o usuário confirmar ou corrigir, e persiste a decisão imediatamente — sem perder progresso se a sessão for
-interrompida no meio. Consome a saída da feature de categorização (002); não usa LLM. Inclui a montagem do grafo
-(LangGraph `StateGraph` com `interrupt()`) que liga `detect_and_parse` → `categorize` → `human_review`, já que este
-é o primeiro node cuja razão de existir depende de rodar dentro de um grafo compilado."
+**Input**: User description: "Human review (the graph's `human_review` node): interrupts processing whenever
+there are medium/low confidence transactions or transfer candidates between the user's own accounts, presents
+each one for the user to confirm or correct, and persists the decision immediately — without losing progress if
+the session is interrupted midway. Consumes the output of the categorization feature (002); doesn't use an LLM.
+Includes assembling the graph (a LangGraph `StateGraph` with `interrupt()`) that wires
+`detect_and_parse` → `categorize` → `human_review`, since this is the first node whose reason to exist depends on
+running inside a compiled graph."
 
 ## User Scenarios & Testing *(mandatory)*
 
-### User Story 1 - Revisar e corrigir transações de confiança média/baixa (Priority: P1)
+### User Story 1 - Review and correct medium/low confidence transactions (Priority: P1)
 
-Como usuário, quero ver cada transação que o sistema categorizou com confiança média ou baixa, com a sugestão já
-preenchida, e poder aceitar essa sugestão ou corrigi-la, para garantir que meus dados financeiros fiquem corretos
-antes de qualquer relatório ser gerado.
+As a user, I want to see every transaction the system categorized with medium or low confidence, with the
+suggestion already filled in, and be able to accept that suggestion or correct it, to make sure my financial data
+is right before any report gets generated.
 
-**Why this priority**: É a razão de existir do node — sem isso, transações de baixa confiança ficariam
-permanentemente incorretas, e a promessa central do projeto (revisão humana obrigatória para decisões sensíveis)
-não se cumpre.
+**Why this priority**: It's this node's reason to exist — without it, low-confidence transactions would stay
+permanently wrong, and the project's core promise (mandatory human review for sensitive decisions) wouldn't be
+fulfilled.
 
-**Independent Test**: Pode ser testado fornecendo um mês com transações de confiança média/baixa e simulando
-respostas do usuário (aceitar / corrigir), verificando que cada transação termina com a categoria certa e
+**Independent Test**: Can be tested by providing a month with medium/low confidence transactions and simulating
+user responses (accept / correct), verifying each transaction ends up with the right category and
 `confidence = high`.
 
 **Acceptance Scenarios**:
 
-1. **Given** uma transação com `confidence = medium` e uma categoria sugerida, **When** o usuário aceita a
-   sugestão, **Then** a transação mantém a categoria/subcategoria sugeridas e passa a ter `confidence = high`.
-2. **Given** uma transação com `confidence = low`, **When** o usuário informa uma categoria diferente da sugerida,
-   **Then** a transação recebe a categoria/subcategoria informadas pelo usuário, com `confidence = high`.
-3. **Given** um mês em que todas as transações já têm `confidence = high` (nenhuma pendência), **When** o
-   processamento chega neste node, **Then** o grafo segue adiante automaticamente, sem interromper para revisão.
+1. **Given** a transaction with `confidence = medium` and a suggested category, **When** the user accepts the
+   suggestion, **Then** the transaction keeps the suggested category/subcategory and gets `confidence = high`.
+2. **Given** a transaction with `confidence = low`, **When** the user provides a category different from the
+   suggestion, **Then** the transaction gets the category/subcategory the user provided, with `confidence = high`.
+3. **Given** a month where every transaction already has `confidence = high` (nothing pending), **When**
+   processing reaches this node, **Then** the graph proceeds automatically, without interrupting for review.
 
 ---
 
-### User Story 2 - Confirmar ou rejeitar candidatos a transferência (Priority: P1)
+### User Story 2 - Confirm or reject transfer candidates (Priority: P1)
 
-Como usuário, quero confirmar ou rejeitar cada transação sinalizada como candidata a transferência entre minhas
-próprias contas, para controlar exatamente quais movimentações são tratadas como transferência interna e quais
-são gasto/receita real.
+As a user, I want to confirm or reject each transaction flagged as a candidate for a transfer between my own
+accounts, to control exactly which movements are treated as internal transfers and which are real
+expense/income.
 
-**Why this priority**: A sugestão de transferência nunca pode virar decisão automática (BRD 5.2) — sem esta user
-story, candidatos a transferência ficariam presos permanentemente no estado de "sugestão", nunca confirmados.
+**Why this priority**: A transfer suggestion can never turn into an automatic decision (BRD 5.2) — without this
+user story, transfer candidates would stay permanently stuck in "suggested" state, never confirmed.
 
-**Independent Test**: Pode ser testado fornecendo uma transação com `category = "Transferência interna"` (sugerida
-pela categorização) e simulando confirmação e rejeição, verificando o resultado em cada caso.
+**Independent Test**: Can be tested by providing a transaction with `category = "Transferência interna"`
+(suggested by categorization) and simulating both confirmation and rejection, verifying the outcome in each case.
 
 **Acceptance Scenarios**:
 
-1. **Given** uma transação sugerida como "Transferência interna", **When** o usuário confirma, **Then** ela
-   permanece com essa categoria e passa a ter `confidence = high`.
-2. **Given** uma transação sugerida como "Transferência interna", **When** o usuário rejeita e informa a categoria
-   real, **Then** ela recebe a categoria informada (nunca permanece como "Transferência interna" sem confirmação
-   nem fica sem categoria), com `confidence = high`.
+1. **Given** a transaction suggested as "Transferência interna", **When** the user confirms, **Then** it keeps
+   that category and gets `confidence = high`.
+2. **Given** a transaction suggested as "Transferência interna", **When** the user rejects it and provides the
+   real category, **Then** it gets the provided category (never staying as "Transferência interna" unconfirmed
+   nor ending up with no category), with `confidence = high`.
 
 ---
 
-### User Story 3 - Retomar uma revisão interrompida sem perder progresso (Priority: P2)
+### User Story 3 - Resume an interrupted review without losing progress (Priority: P2)
 
-Como usuário, quero poder interromper uma sessão de revisão no meio (fechar o terminal, por exemplo) e retomar
-depois, sem perder as decisões que já tomei nem repetir revisões já feitas.
+As a user, I want to be able to interrupt a review session midway (closing the terminal, for instance) and resume
+later, without losing decisions I already made nor repeating reviews already done.
 
-**Why this priority**: Revisão de um mês inteiro pode ter dezenas de itens — sem essa garantia, uma interrupção
-acidental obrigaria a refazer tudo, o que na prática desencorajaria o uso da revisão.
+**Why this priority**: Reviewing a whole month can have dozens of items — without this guarantee, an accidental
+interruption would force redoing everything, which in practice would discourage using the review feature at all.
 
-**Independent Test**: Pode ser testado revisando parte dos itens pendentes, simulando uma interrupção, e
-retomando o processamento — verificando que os itens já decididos não são apresentados de novo e permanecem com a
-decisão tomada.
+**Independent Test**: Can be tested by reviewing part of the pending items, simulating an interruption, and
+resuming processing — verifying that already-decided items aren't presented again and keep the decision made.
 
 **Acceptance Scenarios**:
 
-1. **Given** uma sessão de revisão com 3 itens pendentes, **When** o usuário decide o primeiro item e a sessão é
-   interrompida antes do segundo, **Then** o primeiro item permanece com a decisão tomada (persistida
-   imediatamente) ao retomar.
-2. **Given** uma sessão retomada após interrupção, **When** o processamento continua, **Then** apenas os itens
-   ainda não decididos são apresentados ao usuário — nenhum item já decidido é perguntado de novo.
+1. **Given** a review session with 3 pending items, **When** the user decides the first item and the session is
+   interrupted before the second, **Then** the first item keeps the decision made (persisted immediately) upon
+   resuming.
+2. **Given** a session resumed after an interruption, **When** processing continues, **Then** only the items
+   still pending are presented to the user — no already-decided item is asked about again.
 
 ### Edge Cases
 
-- Nenhuma transação pendente de revisão no mês: o node não deve interromper o grafo (User Story 1, cenário 3).
-- Usuário informa uma categoria ou subcategoria fora da taxonomia configurada durante uma correção: o sistema
-  MUST rejeitar a entrada e pedir novamente, nunca aceitar uma categoria inválida silenciosamente.
-- Duas transações formam um par de transferência espelhada (uma sugestão em cada conta): cada uma é revisada
-  independentemente — confirmar ou rejeitar uma não decide automaticamente a outra.
-- Sessão interrompida sem nenhuma decisão tomada ainda: ao retomar, todos os itens originalmente pendentes
-  continuam pendentes, sem duplicação nem perda.
+- No transaction pending review for the month: the node must not interrupt the graph (User Story 1, scenario 3).
+- The user provides a category or subcategory outside the configured taxonomy during a correction: the system
+  MUST reject the input and ask again, never silently accepting an invalid category.
+- Two transactions form a mirrored transfer pair (one suggestion in each account): each is reviewed
+  independently — confirming or rejecting one doesn't automatically decide the other.
+- Session interrupted with no decision made yet: upon resuming, every originally pending item stays pending, with
+  no duplication or loss.
 
 ## Requirements *(mandatory)*
 
 ### Functional Requirements
 
-- **FR-001**: O sistema MUST interromper o processamento do mês sempre que existir pelo menos uma transação com
-  `confidence` diferente de `high` ou com `category = "Transferência interna"` ainda não confirmada.
-- **FR-002**: Para cada item pendente, o sistema MUST apresentar ao usuário data, descrição, valor, conta e a
-  categoria/subcategoria/confiança sugeridas antes de pedir uma decisão.
-- **FR-003**: Para itens que não são candidatos a transferência, o usuário MUST poder aceitar a sugestão ou
-  informar uma categoria/subcategoria diferente, dentro da taxonomia configurada.
-- **FR-004**: Para candidatos a transferência, o usuário MUST poder confirmar (mantém "Transferência interna") ou
-  rejeitar e informar a categoria real — nunca ficar sem decisão.
-- **FR-005**: Toda transação decidida pelo usuário (aceita ou corrigida) MUST passar a ter `confidence = high`,
-  refletindo que uma decisão humana é a fonte de confiança mais alta possível no sistema.
-- **FR-006**: Cada decisão MUST ser persistida imediatamente após ser tomada, não só ao final da sessão inteira —
-  uma interrupção não pode custar decisões já tomadas.
-- **FR-007**: Ao retomar uma sessão interrompida, o sistema MUST apresentar apenas os itens ainda pendentes —
-  itens já decididos MUST NOT ser apresentados novamente.
-- **FR-008**: Quando não houver nenhum item pendente de revisão para o mês, o sistema MUST seguir o processamento
-  automaticamente, sem interromper.
-- **FR-009**: O sistema MUST validar qualquer categoria/subcategoria informada manualmente contra a taxonomia
-  configurada, rejeitando e pedindo novamente entradas inválidas.
-- **FR-010**: Esta feature MUST NOT gravar novas confirmações na memória de merchants — isso continua sendo
-  responsabilidade de uma feature futura (`update_memory`), que consome as decisões desta feature.
+- **FR-001**: The system MUST interrupt processing of the month whenever there's at least one transaction with
+  `confidence` other than `high`, or with `category = "Transferência interna"` not yet confirmed.
+- **FR-002**: For each pending item, the system MUST present the user with date, description, amount, account,
+  and the suggested category/subcategory/confidence before asking for a decision.
+- **FR-003**: For items that aren't transfer candidates, the user MUST be able to accept the suggestion or provide
+  a different category/subcategory, within the configured taxonomy.
+- **FR-004**: For transfer candidates, the user MUST be able to confirm (keeps "Transferência interna") or reject
+  and provide the real category — never left undecided.
+- **FR-005**: Every transaction decided by the user (accepted or corrected) MUST end up with `confidence = high`,
+  reflecting that a human decision is the highest possible confidence source in the system.
+- **FR-006**: Each decision MUST be persisted immediately after being made, not only at the end of the whole
+  session — an interruption can't cost already-made decisions.
+- **FR-007**: When resuming an interrupted session, the system MUST present only the items still pending —
+  already-decided items MUST NOT be presented again.
+- **FR-008**: When there's no item pending review for the month, the system MUST proceed with processing
+  automatically, without interrupting.
+- **FR-009**: The system MUST validate any manually provided category/subcategory against the configured
+  taxonomy, rejecting and re-asking for invalid entries.
+- **FR-010**: This feature MUST NOT write new confirmations into merchant memory — that remains a future
+  feature's responsibility (`update_memory`), which consumes this feature's decisions.
 
 ### Key Entities *(include if feature involves data)*
 
-- **Item pendente de revisão**: não é uma entidade própria — é qualquer transação (da feature 002) com
-  `confidence` diferente de `high`, ou com `category = "Transferência interna"` ainda não confirmada pelo usuário.
-- **Decisão humana**: a atualização de `category`/`subcategory`/`confidence` de uma transação, aplicada
-  diretamente sobre o registro existente — não existe uma tabela separada de "decisões"; a transação em si é a
-  fonte de verdade de que foi revisada, pois `confidence = high` só ocorre por memória confirmada (feature 002)
-  ou por decisão humana (esta feature).
+- **Pending review item**: not its own entity — it's any transaction (from feature 002) with `confidence` other
+  than `high`, or with `category = "Transferência interna"` not yet confirmed by the user.
+- **Human decision**: the update of a transaction's `category`/`subcategory`/`confidence`, applied directly onto
+  the existing record — there's no separate "decisions" table; the transaction itself is the source of truth for
+  whether it was reviewed, since `confidence = high` only happens via confirmed memory (feature 002) or a human
+  decision (this feature).
 
 ## Success Criteria *(mandatory)*
 
 ### Measurable Outcomes
 
-- **SC-001**: 100% das transações com confiança média/baixa ou candidatas a transferência de um mês processado
-  terminam a revisão com `confidence = high`.
-- **SC-002**: Interromper uma sessão de revisão no meio e retomá-la depois não perde nenhuma decisão já tomada.
-- **SC-003**: Um mês em que todas as transações já são `confidence = high` é processado sem nenhuma interrupção
-  para revisão.
-- **SC-004**: Nenhum candidato a transferência permanece com `category = "Transferência interna"` sem confirmação
-  explícita do usuário ao final da revisão do mês.
-- **SC-005**: Nenhuma categoria ou subcategoria fora da taxonomia configurada é aceita durante uma correção manual.
+- **SC-001**: 100% of medium/low confidence transactions, or transfer candidates, in a processed month end review
+  with `confidence = high`.
+- **SC-002**: Interrupting a review session midway and resuming it later doesn't lose any decision already made.
+- **SC-003**: A month where every transaction is already `confidence = high` is processed with no interruption
+  for review.
+- **SC-004**: No transfer candidate stays with `category = "Transferência interna"` without the user's explicit
+  confirmation by the end of the month's review.
+- **SC-005**: No category or subcategory outside the configured taxonomy is accepted during a manual correction.
 
 ## Assumptions
 
-- Uma decisão humana (aceitar ou corrigir) sempre resulta em `confidence = high` — não existe um quarto nível de
-  confiança "revisado por humano" separado; o valor `high` já comunica "não precisa de mais revisão", seja a
-  origem memória de merchant (feature 002) ou decisão humana (esta feature).
-- Cada transação é revisada individualmente, mesmo quando faz parte de um par de transferência espelhada — não há
-  nesta versão uma interação de "revisar o par de uma vez" (poderia ser um refinamento futuro).
-- A interface de interação com o usuário nesta fase é a CLI (conforme stack do BRD, Fase 1); esta feature inclui o
-  mínimo de interação necessário para revisar um mês, não um CLI completo com todos os comandos do produto.
-- A montagem do grafo (`StateGraph`, `interrupt()`, checkpointer com `thread_id` por mês) é tratada como detalhe
-  técnico desta feature (fica no plano de implementação), não como uma feature separada — é a primeira vez que um
-  grafo precisa existir de fato, já que os nodes anteriores rodavam como funções independentes.
-- Persistir a decisão "imediatamente" (FR-006) significa gravar no banco a cada item decidido, não esperar o fim
-  da sessão de revisão inteira — alinhado ao uso do checkpointer do LangGraph para retomar exatamente de onde
-  parou.
+- A human decision (accept or correct) always results in `confidence = high` — there's no separate fourth
+  "human-reviewed" confidence level; the value `high` already communicates "doesn't need further review", whether
+  its origin is merchant memory (feature 002) or a human decision (this feature).
+- Each transaction is reviewed individually, even when part of a mirrored transfer pair — this version has no
+  "review the pair at once" interaction (could be a future refinement).
+- The user interaction interface at this stage is the CLI (per the BRD's Phase 1 stack); this feature includes
+  only the minimum interaction needed to review a month, not a full CLI with every product command.
+- Assembling the graph (`StateGraph`, `interrupt()`, a checkpointer with `thread_id` per month) is treated as a
+  technical detail of this feature (goes into the implementation plan), not as a separate feature — it's the
+  first time a graph actually needs to exist, since the previous nodes ran as independent functions.
+- Persisting a decision "immediately" (FR-006) means writing to the database for each decided item, not waiting
+  for the whole review session to end — aligned with using the LangGraph checkpointer to resume exactly where it
+  left off.

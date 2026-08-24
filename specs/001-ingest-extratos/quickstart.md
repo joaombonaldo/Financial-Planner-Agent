@@ -1,52 +1,52 @@
-# Quickstart: Validando a Ingestão de Extratos
+# Quickstart: Validating Bank Statement Ingestion
 
-Guia de validação end-to-end desta feature. Não contém código de implementação — apenas os passos para provar que
-o comportamento descrito na spec funciona.
+End-to-end validation guide for this feature. No implementation code — just the steps to prove the behavior
+described in the spec works.
 
-## Pré-requisitos
+## Prerequisites
 
-- Ambiente `backend/` com dependências resolvidas (`uv sync`)
-- Fixtures de teste em `backend/tests/fixtures/bradesco/` e `backend/tests/fixtures/inter/` (CSVs pequenos e
-  sintéticos, cobrindo caso feliz + casos de borda da spec — nunca dados reais)
-- Banco SQLite de teste vazio (arquivo temporário, não o banco real do usuário)
+- `backend/` environment with dependencies resolved (`uv sync`)
+- Test fixtures in `backend/tests/fixtures/bradesco/` and `backend/tests/fixtures/inter/` (small, synthetic CSVs
+  covering the happy path + the spec's edge cases — never real data)
+- An empty test SQLite database (a temp file, not the user's real database)
 
-## Cenário 1 — Importar um extrato de cada banco (User Story 1)
+## Scenario 1 — Import a statement from each bank (User Story 1)
 
-1. Rodar o processo de ingestão apontando para a fixture do Bradesco.
-2. Verificar que o banco detectado é `bradesco`, sem input manual.
-3. Verificar que a quantidade de transações retornadas bate com a quantidade de linhas de transação real da
-   fixture (contadas manualmente na fixture).
-4. Repetir os passos 1-3 para a fixture do Inter, incluindo uma linha com `Descrição` vazia — verificar que a
-   transação correspondente usa `Histórico` como descrição.
+1. Run the ingestion process pointing at the Bradesco fixture.
+2. Verify the detected bank is `bradesco`, with no manual input.
+3. Verify the number of transactions returned matches the number of real transaction lines in the fixture
+   (counted manually in the fixture).
+4. Repeat steps 1-3 for the Inter fixture, including a line with a blank `Descrição` — verify the corresponding
+   transaction uses `Histórico` as the description.
 
-**Resultado esperado**: transações normalizadas em formato único (mesma estrutura de campos) para os dois bancos,
-com valor/data no formato canônico, independente do banco de origem.
+**Expected result**: normalized transactions in a single format (same field structure) for both banks, with
+amount/date in canonical format, regardless of source bank.
 
-## Cenário 2 — Reimportar sem duplicar (User Story 2)
+## Scenario 2 — Reimport without duplicating (User Story 2)
 
-1. Importar a fixture do Bradesco (como no Cenário 1).
-2. Importar a mesma fixture novamente.
-3. Verificar que `transactions_imported` da segunda execução é `0` e `transactions_skipped_duplicate` bate com o
-   total de transações da fixture.
+1. Import the Bradesco fixture (as in Scenario 1).
+2. Import the same fixture again.
+3. Verify `transactions_imported` on the second run is `0` and `transactions_skipped_duplicate` matches the
+   fixture's total transaction count.
 
-**Resultado esperado**: nenhuma transação duplicada na base após a segunda importação.
+**Expected result**: no duplicate transactions in the database after the second import.
 
-## Cenário 3 — Aviso em arquivo não reconhecido ou saldo inconsistente (User Story 3)
+## Scenario 3 — Warning on unrecognized file or inconsistent balance (User Story 3)
 
-1. Rodar o processo de ingestão apontando para um arquivo CSV com estrutura de colunas que não corresponde a
-   nenhum dos dois bancos suportados.
-2. Verificar que o processo retorna um erro explícito de "banco não reconhecido", sem gerar nenhuma transação.
-3. Rodar o processo com uma fixture válida onde a coluna de saldo foi deliberadamente alterada para não reconciliar
-   com a soma das transações.
-4. Verificar que o `ImportResult` tem `balance_reconciliation = mismatch` e contém uma mensagem em `warnings`
-   explicando a divergência — e que as transações reconhecidas corretamente ainda assim são importadas.
+1. Run the ingestion process pointing at a CSV file whose column structure doesn't match either supported bank.
+2. Verify the process returns an explicit "bank not recognized" error, without generating any transaction.
+3. Run the process with a valid fixture where the balance column was deliberately altered to not reconcile with
+   the sum of transactions.
+4. Verify the `ImportResult` has `balance_reconciliation = mismatch` and contains a message in `warnings`
+   explaining the discrepancy — and that the correctly recognized transactions are still imported.
 
-**Resultado esperado**: falhas e inconsistências são sempre visíveis ao usuário, nunca silenciosas; um arquivo de
-banco não suportado nunca gera transações parciais.
+**Expected result**: failures and inconsistencies are always visible to the user, never silent; a file from an
+unsupported bank never generates partial transactions.
 
-## Checklist de saída
+## Exit checklist
 
-- [ ] Cenário 1 passa para Bradesco e Inter
-- [ ] Cenário 2 confirma zero duplicatas em reimportação
-- [ ] Cenário 3 confirma erro explícito (banco não reconhecido) e aviso explícito (saldo não reconcilia)
-- [ ] Nenhum teste depende de rede, LLM ou dado financeiro real
+- [ ] Scenario 1 passes for Bradesco and Inter
+- [ ] Scenario 2 confirms zero duplicates on reimport
+- [ ] Scenario 3 confirms an explicit error (bank not recognized) and an explicit warning (balance doesn't
+      reconcile)
+- [ ] No test depends on the network, an LLM, or real financial data

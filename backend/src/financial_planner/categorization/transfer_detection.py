@@ -1,8 +1,9 @@
-"""Detecção de candidatos a transferência entre contas próprias (contracts/transfer-detection.md).
+"""Detects candidates for transfers between the user's own accounts (contracts/transfer-detection.md).
 
-Padrão PIX/TED/DOC na descrição + valor espelhado (mesmo valor absoluto, type oposto)
-em outra conta dentro de uma janela de ±2 dias. As duas condições são obrigatórias.
-Nunca exclui a transação do total nem confirma — apenas sinaliza (FR-008).
+PIX/TED/DOC pattern in the description + a mirrored amount (same absolute value,
+opposite type) in another account within a ±2-day window. Both conditions are
+mandatory. Never excludes the transaction from the total nor confirms it — only flags
+it (FR-008).
 """
 
 import re

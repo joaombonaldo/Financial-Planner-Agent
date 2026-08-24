@@ -3,162 +3,164 @@
 description: "Task list template for feature implementation"
 ---
 
-# Tasks: Categorização de Transações
+# Tasks: Transaction Categorization
 
 **Input**: Design documents from `/specs/002-categorize-transacoes/`
 
 **Prerequisites**: plan.md, spec.md, research.md, data-model.md, contracts/llm-categorizer.md,
 contracts/transfer-detection.md, quickstart.md
 
-**Tests**: Incluídas — a constituição do projeto exige que o grafo seja testável com LLM mockado, sem depender do
-Ollama rodando ("Padrões de Teste"), então não são opcionais nesta feature.
+**Tests**: Included — the project's constitution requires the graph to be testable with a mocked LLM, without
+depending on Ollama running ("Testing Standards"), so they're not optional in this feature.
 
-**Organization**: Tasks agrupadas por user story (US1/US2/US3, conforme spec.md) para permitir implementação e
-teste independentes de cada uma.
+**Organization**: Tasks are grouped by user story (US1/US2/US3, per spec.md) to allow independent implementation
+and testing of each one.
 
 ## Format: `[ID] [P?] [Story] Description`
 
-- **[P]**: pode rodar em paralelo (arquivos diferentes, sem dependência de tasks incompletas)
-- **[Story]**: a qual user story a task pertence (US1, US2, US3)
+- **[P]**: can run in parallel (different files, no dependency on incomplete tasks)
+- **[Story]**: which user story the task belongs to (US1, US2, US3)
 
 ## Path Conventions
 
-Projeto único em `backend/`, conforme `plan.md`. Todos os caminhos abaixo são relativos à raiz do repositório.
+Single project in `backend/`, per `plan.md`. All paths below are relative to the repository root.
 
 ---
 
 ## Phase 1: Setup (Shared Infrastructure)
 
-- [X] T001 [P] Criar diretórios `backend/src/financial_planner/categorization/` e
-      `backend/src/financial_planner/llm/`, cada um com `__init__.py`
-- [X] T002 [P] Criar `backend/tests/fixtures/categorization/`
-- [X] T003 [P] Criar `backend/src/financial_planner/config/categories.yaml` com a taxonomia inicial do Anexo A do
-      BRD (categorias + subcategorias, incluindo "Outros" e "Transferência interna")
+- [X] T001 [P] Create directories `backend/src/financial_planner/categorization/` and
+      `backend/src/financial_planner/llm/`, each with `__init__.py`
+- [X] T002 [P] Create `backend/tests/fixtures/categorization/`
+- [X] T003 [P] Create `backend/src/financial_planner/config/categories.yaml` with the initial taxonomy from the
+      BRD's Appendix A (categories + subcategories, including "Outros" and "Transferência interna")
 
-**Checkpoint**: estrutura de pastas e taxonomia base prontas.
+**Checkpoint**: folder structure and base taxonomy ready.
 
 ---
 
 ## Phase 2: Foundational (Blocking Prerequisites)
 
-**Purpose**: peças compartilhadas pelas três user stories — schema estendido, acesso a merchant memory, taxonomia
-validada e abstração de LLM. Nenhuma user story pode ser implementada antes desta fase.
+**Purpose**: pieces shared by all three user stories — extended schema, merchant-memory access, validated
+taxonomy, and the LLM abstraction. No user story can be implemented before this phase.
 
-**⚠️ CRITICAL**: bloqueia todas as user stories abaixo.
+**⚠️ CRITICAL**: blocks all user stories below.
 
-- [X] T004 Adicionar a tabela `merchant_memory` (`merchant_key` PK, `category`, `subcategory`) a
-      `backend/src/financial_planner/db/schema.sql`, usando SQL padrão (Princípio IV)
-- [X] T005 Implementar em `backend/src/financial_planner/db/repository.py`: `get_merchant_category(merchant_key)`,
-      `update_transaction_category(dedup_hash, category, subcategory, confidence)` e
-      `list_transactions_by_month(month_ref)` (depende de T004)
-- [X] T006 [P] Implementar carregamento e validação da taxonomia (`config/categories.yaml` → lista de
-      categorias/subcategorias válidas, incluindo fallback "Outros") em
-      `backend/src/financial_planner/categorization/taxonomy.py` (depende de T003)
-- [X] T007 [P] Implementar `backend/src/financial_planner/llm/client.py`: único ponto de criação do chat model via
-      `init_chat_model`, configurado por `OLLAMA_MODEL`/`OLLAMA_BASE_URL` (Princípio III)
-- [X] T008 Implementar normalização de merchant key (trim + lowercase de `description_raw`) e busca em memória em
-      `backend/src/financial_planner/categorization/merchant_memory.py` (depende de T005)
+- [X] T004 Add the `merchant_memory` table (`merchant_key` PK, `category`, `subcategory`) to
+      `backend/src/financial_planner/db/schema.sql`, using standard SQL (Principle IV)
+- [X] T005 Implement in `backend/src/financial_planner/db/repository.py`: `get_merchant_category(merchant_key)`,
+      `update_transaction_category(dedup_hash, category, subcategory, confidence)`, and
+      `list_transactions_by_month(month_ref)` (depends on T004)
+- [X] T006 [P] Implement loading and validating the taxonomy (`config/categories.yaml` → list of valid
+      categories/subcategories, including the "Outros" fallback) in
+      `backend/src/financial_planner/categorization/taxonomy.py` (depends on T003)
+- [X] T007 [P] Implement `backend/src/financial_planner/llm/client.py`: the single point of chat model creation
+      via `init_chat_model`, configured by `OLLAMA_MODEL`/`OLLAMA_BASE_URL` (Principle III)
+- [X] T008 Implement merchant key normalization (trim + lowercase of `description_raw`) and memory lookup in
+      `backend/src/financial_planner/categorization/merchant_memory.py` (depends on T005)
 
-**Checkpoint**: fundação pronta — as três user stories podem começar.
+**Checkpoint**: foundation ready — all three user stories can start.
 
 ---
 
-## Phase 3: User Story 1 - Categorizar automaticamente merchants já conhecidos (Priority: P1) 🎯 MVP
+## Phase 3: User Story 1 - Automatically categorize already-known merchants (Priority: P1) 🎯 MVP
 
-**Goal**: transações de merchants já confirmados em memória recebem categoria/subcategoria com `confidence = high`,
-sem chamar o LLM.
+**Goal**: transactions from merchants already confirmed in memory get category/subcategory with
+`confidence = high`, without calling the LLM.
 
-**Independent Test**: popular `merchant_memory` com um mapeamento e verificar que uma transação correspondente é
-categorizada corretamente sem nenhuma chamada ao LLM (Cenário 1 de `quickstart.md`).
+**Independent Test**: populate `merchant_memory` with a mapping and verify a matching transaction is categorized
+correctly with no LLM call at all (Scenario 1 of `quickstart.md`).
 
 ### Tests for User Story 1 ⚠️
 
-- [X] T009 [P] [US1] Criar fixtures de transações + estado de `merchant_memory` (merchant conhecido) em
+- [X] T009 [P] [US1] Create fixtures for transactions + `merchant_memory` state (known merchant) in
       `backend/tests/fixtures/categorization/`
-- [X] T010 [P] [US1] Teste unitário: merchant já confirmado retorna categoria mapeada com `confidence = high`, em
-      `backend/tests/test_categorize.py::test_categorize_known_merchant` (depende de T009)
-- [X] T011 [P] [US1] Teste unitário: memória vazia (primeira execução) não produz `confidence = high` para nenhuma
-      transação, em `backend/tests/test_categorize.py::test_empty_merchant_memory_never_high`
+- [X] T010 [P] [US1] Unit test: an already-confirmed merchant returns the mapped category with
+      `confidence = high`, in
+      `backend/tests/test_categorize.py::test_categorize_known_merchant` (depends on T009)
+- [X] T011 [P] [US1] Unit test: empty memory (first run) produces `confidence = high` for no transaction, in
+      `backend/tests/test_categorize.py::test_empty_merchant_memory_never_high`
 
 ### Implementation for User Story 1
 
-- [X] T012 [US1] Implementar o node `categorize` em `backend/src/financial_planner/nodes/categorize.py`,
-      orquestrando: para cada transação, checar `merchant_memory.py` primeiro e atualizar a transação via
-      `db/repository.py` quando houver match (depende de T008, T005)
+- [X] T012 [US1] Implement the `categorize` node in `backend/src/financial_planner/nodes/categorize.py`,
+      orchestrating: for each transaction, check `merchant_memory.py` first and update the transaction via
+      `db/repository.py` when there's a match (depends on T008, T005)
 
-**Checkpoint**: User Story 1 completa e testável de forma independente.
+**Checkpoint**: User Story 1 complete and independently testable.
 
 ---
 
-## Phase 4: User Story 2 - Categorizar transações novas ou ambíguas via LLM (Priority: P1)
+## Phase 4: User Story 2 - Categorize new or ambiguous transactions via LLM (Priority: P1)
 
-**Goal**: merchants sem match em memória são categorizados via LLM, com fallback para "Outros"/`low` quando a
-resposta não pertence à taxonomia.
+**Goal**: merchants with no memory match get categorized via the LLM, with a fallback to "Outros"/`low` when the
+response doesn't belong to the taxonomy.
 
-**Independent Test**: rodar a categorização com o LLM mockado retornando categoria válida e depois inválida,
-verificando `confidence` e o fallback (Cenário 2 de `quickstart.md`).
+**Independent Test**: run categorization with the mocked LLM returning a valid category and then an invalid one,
+checking `confidence` and the fallback (Scenario 2 of `quickstart.md`).
 
 ### Tests for User Story 2 ⚠️
 
-- [X] T013 [P] [US2] Criar dublê determinístico do LLM (substitui `llm/client.py` nos testes) em
+- [X] T013 [P] [US2] Create a deterministic LLM double (replaces `llm/client.py` in tests) in
       `backend/tests/fixtures/categorization/`
-- [X] T014 [P] [US2] Teste unitário: merchant novo recebe categoria da taxonomia com `confidence` `medium`/`low`,
-      nunca `high`, em `backend/tests/test_categorize.py::test_categorize_new_merchant_via_llm` (depende de T013)
-- [X] T015 [P] [US2] Teste unitário: resposta do LLM fora da taxonomia cai em `category = "Outros"`,
-      `confidence = low`, em
-      `backend/tests/test_categorize.py::test_llm_response_outside_taxonomy_falls_back` (depende de T013)
+- [X] T014 [P] [US2] Unit test: a new merchant gets a taxonomy category with `confidence` `medium`/`low`, never
+      `high`, in `backend/tests/test_categorize.py::test_categorize_new_merchant_via_llm` (depends on T013)
+- [X] T015 [P] [US2] Unit test: an LLM response outside the taxonomy falls into `category = "Outros"`,
+      `confidence = low`, in
+      `backend/tests/test_categorize.py::test_llm_response_outside_taxonomy_falls_back` (depends on T013)
 
 ### Implementation for User Story 2
 
-- [X] T016 [US2] Implementar `backend/src/financial_planner/categorization/llm_categorizer.py`: chama
-      `llm/client.py`, valida a resposta contra `taxonomy.py`, aplica fallback "Outros"/`low` quando necessário
-      (depende de T006, T007)
-- [X] T017 [US2] Estender o node `categorize` para chamar `llm_categorizer.py` quando não há match em memória, em
-      `backend/src/financial_planner/nodes/categorize.py` (depende de T012, T016)
+- [X] T016 [US2] Implement `backend/src/financial_planner/categorization/llm_categorizer.py`: calls
+      `llm/client.py`, validates the response against `taxonomy.py`, applies the "Outros"/`low` fallback when
+      needed (depends on T006, T007)
+- [X] T017 [US2] Extend the `categorize` node to call `llm_categorizer.py` when there's no memory match, in
+      `backend/src/financial_planner/nodes/categorize.py` (depends on T012, T016)
 
-**Checkpoint**: User Story 1 e 2 funcionam juntas — toda transação sem match em memória é categorizada via LLM.
+**Checkpoint**: User Story 1 and 2 work together — every transaction with no memory match is categorized via the
+LLM.
 
 ---
 
-## Phase 5: User Story 3 - Sinalizar candidatos a transferência entre contas próprias (Priority: P2)
+## Phase 5: User Story 3 - Flag candidates for transfers between the user's own accounts (Priority: P2)
 
-**Goal**: transações com padrão de transferência (PIX/TED/DOC) e valor espelhado em outra conta dentro de ±2 dias
-são sugeridas como "Transferência interna", sem serem excluídas do total.
+**Goal**: transactions with a transfer pattern (PIX/TED/DOC) and a mirrored amount in another account within ±2
+days are suggested as "Transferência interna", without being excluded from the total.
 
-**Independent Test**: fornecer duas transações espelhadas em contas diferentes e verificar que ambas são
-sinalizadas, permanecendo na lista de transações (Cenário 3 de `quickstart.md`).
+**Independent Test**: provide two mirrored transactions in different accounts and verify both get flagged,
+staying in the transaction list (Scenario 3 of `quickstart.md`).
 
 ### Tests for User Story 3 ⚠️
 
-- [X] T018 [P] [US3] Criar fixtures de par de transações espelhadas (dentro e fora da janela de 2 dias) em
+- [X] T018 [P] [US3] Create fixtures for a mirrored transaction pair (inside and outside the 2-day window) in
       `backend/tests/fixtures/categorization/`
-- [X] T019 [P] [US3] Teste unitário: par espelhado dentro da janela é sinalizado como "Transferência interna" com
-      `confidence = medium`, em
-      `backend/tests/test_categorize.py::test_transfer_pair_detected` (depende de T018)
-- [X] T020 [P] [US3] Teste unitário: padrão de transferência sem par espelhado segue o fluxo normal (memória/LLM),
-      em `backend/tests/test_categorize.py::test_transfer_pattern_without_mirror_falls_through` (depende de T018)
+- [X] T019 [P] [US3] Unit test: a mirrored pair inside the window gets flagged as "Transferência interna" with
+      `confidence = medium`, in
+      `backend/tests/test_categorize.py::test_transfer_pair_detected` (depends on T018)
+- [X] T020 [P] [US3] Unit test: a transfer pattern with no mirrored pair follows the normal flow (memory/LLM), in
+      `backend/tests/test_categorize.py::test_transfer_pattern_without_mirror_falls_through` (depends on T018)
 
 ### Implementation for User Story 3
 
-- [X] T021 [US3] Implementar `backend/src/financial_planner/categorization/transfer_detection.py`: padrão
-      PIX/TED/DOC + valor espelhado em conta diferente dentro de ±2 dias (depende de T005)
-- [X] T022 [US3] Reordenar o node `categorize` para checar `transfer_detection.py` **antes** de
-      `merchant_memory.py`/`llm_categorizer.py` (ver research.md — ordem de avaliação), em
-      `backend/src/financial_planner/nodes/categorize.py` (depende de T017, T021)
+- [X] T021 [US3] Implement `backend/src/financial_planner/categorization/transfer_detection.py`: PIX/TED/DOC
+      pattern + mirrored amount in a different account within ±2 days (depends on T005)
+- [X] T022 [US3] Reorder the `categorize` node to check `transfer_detection.py` **before**
+      `merchant_memory.py`/`llm_categorizer.py` (see research.md — evaluation order), in
+      `backend/src/financial_planner/nodes/categorize.py` (depends on T017, T021)
 
-**Checkpoint**: as três user stories funcionam de forma independente e integrada, na ordem correta
-(transferência → memória → LLM).
+**Checkpoint**: all three user stories work independently and together, in the correct order
+(transfer → memory → LLM).
 
 ---
 
 ## Phase 6: Polish & Cross-Cutting Concerns
 
-- [X] T023 [P] Rodar os cenários de `quickstart.md` manualmente contra transações reais já importadas (via feature
-      001, dado fora do repositório) para validar end-to-end antes de considerar a feature pronta
-- [X] T024 Revisar `nodes/categorize.py` contra o Princípio II da constituição (node não deve importar
-      `init_chat_model`/`sqlite3` diretamente — apenas via `llm/client.py` e `db/repository.py`)
-- [X] T025 [P] Documentar em `backend/README.md` as variáveis de ambiente necessárias (`OLLAMA_MODEL`,
-      `OLLAMA_BASE_URL`) e como rodar os testes desta feature
+- [X] T023 [P] Run the `quickstart.md` scenarios manually against real transactions already imported (via feature
+      001, data outside the repository) to validate end-to-end before considering the feature done
+- [X] T024 Review `nodes/categorize.py` against Principle II of the constitution (the node must not import
+      `init_chat_model`/`sqlite3` directly — only via `llm/client.py` and `db/repository.py`)
+- [X] T025 [P] Document in `backend/README.md` the required environment variables (`OLLAMA_MODEL`,
+      `OLLAMA_BASE_URL`) and how to run this feature's tests
 
 ---
 
@@ -166,85 +168,85 @@ sinalizadas, permanecendo na lista de transações (Cenário 3 de `quickstart.md
 
 ### Phase Dependencies
 
-- **Setup (Phase 1)**: sem dependências — pode começar imediatamente
-- **Foundational (Phase 2)**: depende do Setup — bloqueia todas as user stories
-- **User Stories (Phase 3-5)**: todas dependem do Foundational
-  - US1, US2 e US3 estendem o mesmo node `categorize` (T012 → T017 → T022), então na prática são sequenciais
-    (US1 → US2 → US3) apesar de testáveis de forma independente — os módulos de domínio (`merchant_memory.py`,
-    `llm_categorizer.py`, `transfer_detection.py`) em si são independentes entre si e podem ser implementados em
-    paralelo antes da integração final no node
-- **Polish (Phase 6)**: depende de todas as user stories desejadas estarem completas
+- **Setup (Phase 1)**: no dependencies — can start immediately
+- **Foundational (Phase 2)**: depends on Setup — blocks all user stories
+- **User Stories (Phase 3-5)**: all depend on Foundational
+  - US1, US2, and US3 extend the same `categorize` node (T012 → T017 → T022), so in practice they're sequential
+    (US1 → US2 → US3) despite being independently testable — the domain modules (`merchant_memory.py`,
+    `llm_categorizer.py`, `transfer_detection.py`) are independent of each other and can be implemented in
+    parallel before the final integration into the node
+- **Polish (Phase 6)**: depends on all desired user stories being complete
 
 ### Within Each User Story
 
-- Testes são escritos antes da implementação e devem falhar primeiro
-- Fixtures antes dos testes que as usam
-- Módulos de domínio (`categorization/*.py`) antes da integração no node
-- A ordem final de avaliação no node (transferência → memória → LLM) só fica correta após T022 (US3) — durante
-  US1/US2 o node ainda não conhece `transfer_detection.py`
+- Tests are written before implementation and must fail first
+- Fixtures before the tests that use them
+- Domain modules (`categorization/*.py`) before integration into the node
+- The node's final evaluation order (transfer → memory → LLM) is only correct after T022 (US3) — during US1/US2
+  the node doesn't know about `transfer_detection.py` yet
 
 ### Parallel Opportunities
 
-- T001, T002, T003 (Setup) em paralelo
-- T006, T007 (Foundational) em paralelo entre si
-- T009 (fixtures) antes de T010/T011 (testes) em paralelo entre si
-- T013 (dublê do LLM) antes de T014/T015 em paralelo entre si
-- T018 (fixtures) antes de T019/T020 em paralelo entre si
+- T001, T002, T003 (Setup) in parallel
+- T006, T007 (Foundational) in parallel with each other
+- T009 (fixtures) before T010/T011 (tests) in parallel with each other
+- T013 (LLM double) before T014/T015 in parallel with each other
+- T018 (fixtures) before T019/T020 in parallel with each other
 
 ---
 
 ## Parallel Example: Foundational
 
 ```bash
-# Módulos independentes em paralelo:
-Task: "Implementar taxonomy.py em backend/src/financial_planner/categorization/taxonomy.py"
-Task: "Implementar llm/client.py em backend/src/financial_planner/llm/client.py"
+# Independent modules in parallel:
+Task: "Implement taxonomy.py in backend/src/financial_planner/categorization/taxonomy.py"
+Task: "Implement llm/client.py in backend/src/financial_planner/llm/client.py"
 ```
 
 ---
 
 ## Implementation Strategy
 
-### MVP First (User Story 1 apenas)
+### MVP First (User Story 1 only)
 
-1. Completar Phase 1 (Setup) e Phase 2 (Foundational)
-2. Completar Phase 3 (US1)
-3. Validar Cenário 1 de `quickstart.md` manualmente
-4. Nesse ponto, merchants já conhecidos são categorizados automaticamente — MVP da feature
+1. Complete Phase 1 (Setup) and Phase 2 (Foundational)
+2. Complete Phase 3 (US1)
+3. Manually validate Scenario 1 of `quickstart.md`
+4. At this point, already-known merchants are categorized automatically — the feature's MVP
 
 ### Incremental Delivery
 
-1. Setup + Foundational → base pronta
-2. US1 → categorização automática de merchants conhecidos (MVP)
-3. US2 → categorização via LLM para merchants novos, com fallback seguro
-4. US3 → sinalização de transferências, sem exclusão automática do total
-5. Polish → validação end-to-end com dado real (fora do repo) + revisão de aderência à constituição
+1. Setup + Foundational → base ready
+2. US1 → automatic categorization of known merchants (MVP)
+3. US2 → LLM categorization for new merchants, with a safe fallback
+4. US3 → transfer flagging, with no automatic exclusion from the total
+5. Polish → end-to-end validation with real data (outside the repo) + constitution-compliance review
 
 ---
 
 ## Notes
 
-- Todas as tasks de teste usam fixtures sintéticas e o LLM sempre mockado — nenhum dado financeiro real nem
-  dependência de Ollama rodando entra na suíte automatizada
-- `merchant_memory` só é lida por esta feature; gravar novas confirmações é responsabilidade de uma feature futura
+- All test tasks use synthetic fixtures with the LLM always mocked — no real financial data nor dependency on
+  Ollama running enters the automated suite
+- `merchant_memory` is only read by this feature; writing new confirmations is a future feature's responsibility
   (`update_memory`)
-- A confirmação/rejeição de candidatos a transferência e a persistência de correções de baixa/média confiança
-  ficam para a feature futura de revisão humana (`human_review`) — esta feature só sugere, nunca decide
-- Commitar após cada task ou grupo lógico de tasks
+- Confirming/rejecting transfer candidates and persisting low/medium confidence corrections are left to the
+  future human review feature (`human_review`) — this feature only suggests, never decides
+- Commit after each task or logical group of tasks
 
-- **T023 concluída** com Ollama real (Qwen2.5) contra as 89 transações reais importadas pela feature 001
-  (Bradesco + Inter, ago/2026; extratos removidos de `extracts/` após a validação):
-  - `confidence = high`: 0 (correto — memória de merchant vazia na primeira execução, SC-005 confirmado)
-  - `confidence = low` por fallback de taxonomia inválida: 0 — todas as respostas do LLM já vieram em categoria
-    válida no formato esperado
-  - 100% das transações terminaram com categoria válida (SC-002); nenhuma foi excluída do total (89 antes e
-    depois da categorização, SC-003)
-  - Qualidade real do LLM é imperfeita (esperado): algumas categorizações ficaram erradas (ex.: farmácia "Raia"
-    categorizada como Transporte; rendimento de investimento "RENTAB.INVEST" categorizado como Cartão de
-    Crédito em vez de Outros) — mas sempre com `confidence = medium`, nunca `high`, então ficam corretamente
-    marcadas para revisão humana (feature futura), validando o design da constituição (Princípio V)
-  - Observação para uma iteração futura (não bloqueia esta feature): o padrão de transferência (`PIX`/`TED`/
-    `DOC`) é amplo o suficiente para sinalizar como "Transferência interna" uma compra via PIX QR Code cujo
-    valor coincide por acaso com outra transação em outra conta dentro da janela de 2 dias — comportamento já
-    previsto como edge case aceito na spec (a decisão final é da revisão humana), mas vale reduzir o escopo do
-    padrão textual se a taxa de falso positivo se mostrar alta no uso real
+- **T023 completed** with real Ollama (Qwen2.5) against the 89 real transactions imported by feature 001
+  (Bradesco + Inter, Aug/2026; statements removed from `extracts/` after validation):
+  - `confidence = high`: 0 (correct — merchant memory empty on the first run, SC-005 confirmed)
+  - `confidence = low` from an invalid-taxonomy fallback: 0 — every LLM response already came back in a valid
+    category in the expected format
+  - 100% of transactions ended up with a valid category (SC-002); none was excluded from the total (89 before
+    and after categorization, SC-003)
+  - Real LLM quality is imperfect (expected): some categorizations were wrong (e.g. the "Raia" pharmacy
+    categorized as Transporte; the "RENTAB.INVEST" investment yield categorized as Cartão de Crédito instead of
+    Outros) — but always with `confidence = medium`, never `high`, so they end up correctly flagged for human
+    review (a future feature), validating the constitution's design (Principle V)
+  - Note for a future iteration (doesn't block this feature): the transfer pattern (`PIX`/`TED`/`DOC`) is broad
+    enough to flag as "Transferência interna" a PIX QR Code purchase whose amount coincidentally matches another
+    transaction in another account within the 2-day window — behavior already anticipated as an accepted edge
+    case in the spec (the final decision is human review's), but worth narrowing the textual pattern if the
+    false-positive rate proves high in real use

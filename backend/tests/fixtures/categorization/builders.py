@@ -1,4 +1,4 @@
-"""Helpers para montar transações sintéticas e popular o banco de teste."""
+"""Helpers to build synthetic transactions and populate the test database."""
 
 import sqlite3
 from datetime import date

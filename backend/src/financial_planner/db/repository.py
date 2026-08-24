@@ -1,6 +1,6 @@
-"""Único ponto de acesso ao SQLite para transações e merchant memory (Princípio II).
+"""Single point of SQLite access for transactions and merchant memory (Principle II).
 
-Nodes nunca importam sqlite3 diretamente — sempre via este módulo.
+Nodes never import sqlite3 directly — always via this module.
 """
 
 import sqlite3
@@ -116,11 +116,11 @@ def list_transactions_by_month(conn: sqlite3.Connection, month_ref: str) -> list
 
 
 def list_pending_review(conn: sqlite3.Connection, month_ref: str) -> list[Transaction]:
-    """Transações ainda não decididas por um humano nem por memória confirmada.
+    """Transactions not yet decided by a human nor by confirmed memory.
 
-    confidence != 'high' já cobre candidatos a transferência: a feature de
-    categorização nunca atribui confidence='high' a "Transferência interna" (só
-    human_review pode). Ver research.md.
+    confidence != 'high' already covers transfer candidates: the categorization
+    feature never assigns confidence='high' to "Transferência interna" (only
+    human_review can). See research.md.
     """
     rows = conn.execute(
         f"SELECT {_TRANSACTION_COLUMNS} FROM transactions "

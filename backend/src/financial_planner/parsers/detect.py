@@ -1,8 +1,7 @@
-"""Detecção automática do banco de origem a partir da estrutura de colunas do header.
+"""Automatic detection of the source bank from the header's column structure.
 
-Ver research.md — "Detecção automática do banco de origem": os dois formatos são
-estruturalmente distintos o suficiente (nomes de coluna) para não precisar de
-heurística ambígua.
+See research.md — "Automatic source-bank detection": the two formats are structurally
+distinct enough (column names) to not need an ambiguous heuristic.
 """
 
 from pathlib import Path
@@ -20,5 +19,5 @@ def detect_bank(path: str) -> Bank:
         return Bank.INTER
 
     raise UnrecognizedBankError(
-        f"Arquivo não corresponde a nenhum banco suportado (Bradesco, Inter): {path}"
+        f"File doesn't match any supported bank (Bradesco, Inter): {path}"
     )

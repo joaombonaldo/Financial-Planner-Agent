@@ -1,7 +1,7 @@
-"""Node detect_and_parse: orquestra detecção de banco, parsing e persistência.
+"""Node detect_and_parse: orchestrates bank detection, parsing, and persistence.
 
-Não acessa pandas/sqlite3 diretamente — delega para parsers/ e db/repository.py
-(Princípio II da constituição).
+Doesn't access pandas/sqlite3 directly — delegates to parsers/ and db/repository.py
+(Principle II of the constitution).
 """
 
 from financial_planner.db import repository
@@ -17,10 +17,10 @@ _PARSERS = {
 
 
 def detect_and_parse(path: str, db_path: str) -> ImportResult:
-    """Detecta o banco, importa as transações e reporta o resultado.
+    """Detects the bank, imports the transactions, and reports the result.
 
-    Levanta UnrecognizedBankError (via detect_bank) se o arquivo não corresponder a
-    nenhum banco suportado — nunca gera transações parciais nesse caso (FR-009).
+    Raises UnrecognizedBankError (via detect_bank) if the file doesn't match any
+    supported bank — never generates partial transactions in that case (FR-009).
     """
     bank = detect_bank(path)
     transactions = _PARSERS[bank](path)

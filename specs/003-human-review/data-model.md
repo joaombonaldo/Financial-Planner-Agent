@@ -1,50 +1,50 @@
-# Data Model: Revisão Humana de Transações
+# Data Model: Human Review of Transactions
 
-## Transação (campos alterados por esta feature)
+## Transaction (fields changed by this feature)
 
-Nenhuma coluna nova em `transactions`. Esta feature só atualiza `category`, `subcategory` e `confidence` — os
-mesmos campos que a feature 002 já preenche — via decisão humana em vez de memória/LLM.
+No new column on `transactions`. This feature only updates `category`, `subcategory`, and `confidence` — the same
+fields feature 002 already fills in — via a human decision instead of memory/LLM.
 
-| Campo | Regra nesta feature |
+| Field | Rule in this feature |
 |---|---|
-| `category`/`subcategory` | Mantidos (aceitar) ou substituídos pela entrada validada do usuário (corrigir) |
-| `confidence` | Sempre vira `"high"` ao final da decisão — nunca fica `medium`/`low` depois de revisado |
+| `category`/`subcategory` | Kept (accept) or replaced by the user's validated input (correct) |
+| `confidence` | Always becomes `"high"` once the decision is made — never stays `medium`/`low` after being reviewed |
 
-## Item pendente de revisão (conceito, não é tabela)
+## Pending review item (a concept, not a table)
 
-Query, não entidade: `SELECT ... FROM transactions WHERE month_ref = ? AND confidence != 'high' ORDER BY date`.
-Ver research.md — por que essa única condição já cobre candidatos a transferência.
+A query, not an entity: `SELECT ... FROM transactions WHERE month_ref = ? AND confidence != 'high' ORDER BY date`.
+See research.md — why this single condition already covers transfer candidates.
 
 ## GraphState
 
-Estado mínimo que flui entre os nodes do `StateGraph`. Deliberadamente pequeno: os nodes já buscam e persistem
-transações direto no banco (padrão estabelecido nas features 001/002), então o estado do grafo não carrega a lista
-de transações — só o necessário para os nodes saberem o que processar.
+The minimal state that flows between the `StateGraph`'s nodes. Deliberately small: the nodes already fetch and
+persist transactions directly in the database (the pattern established in features 001/002), so the graph state
+doesn't carry the transaction list — only what the nodes need to know what to process.
 
-| Campo | Tipo | Descrição |
+| Field | Type | Description |
 |---|---|---|
-| `source_files` | list[str] | caminhos dos extratos a importar (entrada do `detect_and_parse`) |
-| `month_ref` | str | mês sendo processado (ex.: `"2026-08"`) — também usado como `thread_id` do checkpointer |
-| `db_path` | str | caminho do banco SQLite compartilhado por todos os nodes |
+| `source_files` | list[str] | paths of the statements to import (input to `detect_and_parse`) |
+| `month_ref` | str | month being processed (e.g. `"2026-08"`) — also used as the checkpointer's `thread_id` |
+| `db_path` | str | path of the SQLite database shared by all nodes |
 
-## Payload de interrupção (formato do `interrupt()`)
+## Interruption payload (the `interrupt()` format)
 
-Não é uma entidade persistida — é a estrutura de dados trocada entre `nodes/review.py` e quem estiver dirigindo o
-grafo (a CLI, ou um teste).
+Not a persisted entity — it's the data structure exchanged between `nodes/review.py` and whoever is driving the
+graph (the CLI, or a test).
 
-| Campo | Descrição |
+| Field | Description |
 |---|---|
-| `transaction` | data, descrição, valor, conta, categoria/subcategoria/confiança sugeridas |
-| `is_transfer_candidate` | `bool` — muda as respostas válidas esperadas (`confirmar`/categoria vs. `aceitar`/categoria) |
-| `error` | opcional — presente quando o node está re-perguntando pelo mesmo item após uma resposta inválida |
+| `transaction` | date, description, amount, account, suggested category/subcategory/confidence |
+| `is_transfer_candidate` | `bool` — changes the expected valid responses (`confirmar`/category vs. `aceitar`/category) |
+| `error` | optional — present when the node is re-asking about the same item after an invalid response |
 
-## Resposta do usuário (`Command(resume=...)`)
+## User response (`Command(resume=...)`)
 
-Texto livre, no mesmo formato usado pelo `llm_categorizer` da feature 002:
+Free text, in the same format used by feature 002's `llm_categorizer`:
 
-| Entrada | Efeito |
+| Input | Effect |
 |---|---|
-| `"aceitar"` | mantém a categoria/subcategoria sugeridas (só para itens que não são candidatos a transferência) |
-| `"confirmar"` | mantém `"Transferência interna"` (só para candidatos a transferência) |
-| `"categoria\|subcategoria"` | substitui a sugestão pela categoria/subcategoria informadas (subcategoria opcional) |
-| qualquer outra coisa, ou categoria fora da taxonomia | inválido — o node re-interrompe pelo mesmo item com `error` preenchido |
+| `"aceitar"` | keeps the suggested category/subcategory (only for items that aren't transfer candidates) |
+| `"confirmar"` | keeps `"Transferência interna"` (only for transfer candidates) |
+| `"category\|subcategory"` | replaces the suggestion with the provided category/subcategory (subcategory optional) |
+| anything else, or a category outside the taxonomy | invalid — the node interrupts again for the same item with `error` filled in |

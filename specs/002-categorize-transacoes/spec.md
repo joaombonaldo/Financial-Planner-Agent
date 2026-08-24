@@ -1,4 +1,4 @@
-# Feature Specification: Categorização de Transações
+# Feature Specification: Transaction Categorization
 
 **Feature Branch**: `002-categorize-transacoes`
 
@@ -6,167 +6,168 @@
 
 **Status**: Draft
 
-**Input**: User description: "Categorização automática de transações (node `categorize` do grafo): usa memória de
-merchants já confirmados para categorizar com alta confiança sem LLM; chama o LLM apenas para casos novos ou
-ambíguos, retornando confiança categórica (high/medium/low); sinaliza candidatos a transferência entre contas
-próprias sem excluí-los automaticamente do total. Consome a saída da feature de ingestão (001) e prepara o
-resultado para a revisão humana (feature futura)."
+**Input**: User description: "Automatic transaction categorization (the graph's `categorize` node): uses memory of
+already-confirmed merchants to categorize with high confidence without an LLM; calls the LLM only for new or
+ambiguous cases, returning categorical confidence (high/medium/low); flags candidates for transfers between the
+user's own accounts without automatically excluding them from the total. Consumes the output of the ingestion
+feature (001) and prepares the result for human review (a future feature)."
 
 ## User Scenarios & Testing *(mandatory)*
 
-### User Story 1 - Categorizar automaticamente merchants já conhecidos (Priority: P1)
+### User Story 1 - Automatically categorize already-known merchants (Priority: P1)
 
-Como usuário, quero que transações de estabelecimentos que já categorizei em meses anteriores sejam categorizadas
-automaticamente com alta confiança, sem chamar o LLM nem exigir minha revisão, para não repetir o mesmo trabalho
-manual todo mês.
+As a user, I want transactions from merchants I've already categorized in previous months to be categorized
+automatically with high confidence, without calling the LLM or requiring my review, so I don't repeat the same
+manual work every month.
 
-**Why this priority**: É o que torna o processo mensal sustentável — sem isso, toda transação exigiria revisão
-humana ou chamada de LLM, todo mês, para sempre.
+**Why this priority**: It's what makes the monthly process sustainable — without it, every transaction would
+require human review or an LLM call, every month, forever.
 
-**Independent Test**: Pode ser testado fornecendo uma transação cujo merchant já tem mapeamento confirmado em
-memória e verificando que ela recebe a categoria correta com `confidence = high`, sem nenhuma chamada ao LLM.
+**Independent Test**: Can be tested by providing a transaction whose merchant already has a confirmed mapping in
+memory and verifying it gets the correct category with `confidence = high`, with no LLM call.
 
 **Acceptance Scenarios**:
 
-1. **Given** uma transação cuja descrição corresponde a um merchant já confirmado em memória (ex.: "Uber" →
-   Transporte/Uber-99), **When** a transação é categorizada, **Then** ela recebe a categoria e subcategoria
-   mapeadas, com `confidence = high`, sem chamada ao LLM.
-2. **Given** um mês sem nenhum merchant confirmado em memória (primeira execução do sistema), **When** as
-   transações são categorizadas, **Then** nenhuma transação recebe `confidence = high` só por estar na memória —
-   todas passam pelo fluxo de categorização via LLM (User Story 2).
+1. **Given** a transaction whose description matches a merchant already confirmed in memory (e.g. "Uber" →
+   Transporte/Uber-99), **When** the transaction is categorized, **Then** it gets the mapped category and
+   subcategory, with `confidence = high`, with no LLM call.
+2. **Given** a month with no merchant confirmed in memory yet (the system's first run), **When** transactions are
+   categorized, **Then** no transaction gets `confidence = high` just for being in memory — all go through the
+   LLM categorization flow (User Story 2).
 
 ---
 
-### User Story 2 - Categorizar transações novas ou ambíguas via LLM (Priority: P1)
+### User Story 2 - Categorize new or ambiguous transactions via LLM (Priority: P1)
 
-Como usuário, quero que transações de merchants que eu nunca vi antes sejam categorizadas automaticamente por um
-LLM, usando a taxonomia de categorias definida, com um nível de confiança explícito, para que eu saiba quais
-merecem minha atenção na revisão.
+As a user, I want transactions from merchants I've never seen before to be automatically categorized by an LLM,
+using the defined category taxonomy, with an explicit confidence level, so I know which ones deserve my attention
+during review.
 
-**Why this priority**: Junto com a User Story 1, é o que entrega o valor central da feature — sem isso, toda
-transação nova ficaria sem categoria alguma.
+**Why this priority**: Together with User Story 1, it's what delivers this feature's core value — without it,
+every new transaction would end up with no category at all.
 
-**Independent Test**: Pode ser testado fornecendo uma transação cujo merchant não está na memória e verificando que
-o LLM é chamado e retorna uma categoria válida da taxonomia com um nível de confiança categórico.
+**Independent Test**: Can be tested by providing a transaction whose merchant isn't in memory and verifying the
+LLM is called and returns a valid category from the taxonomy with a categorical confidence level.
 
 **Acceptance Scenarios**:
 
-1. **Given** uma transação cujo merchant não está na memória, **When** ela é categorizada, **Then** o LLM é chamado
-   e retorna uma categoria/subcategoria pertencente à taxonomia configurada, com `confidence` igual a `medium` ou
-   `low` (nunca `high` — alta confiança só vem de merchant já conhecido, ver User Story 1).
-2. **Given** uma resposta do LLM que não corresponde a nenhuma categoria da taxonomia configurada, **When** o
-   resultado é processado, **Then** a transação recebe a categoria de fallback "Outros" com `confidence = low`, em
-   vez de ficar sem categoria ou quebrar o processamento.
-3. **Given** uma transação com descrição genérica insuficiente para categorização confiável (ex.: histórico do
-   Bradesco que nunca cita o nome do estabelecimento), **When** ela é categorizada, **Then** ela recebe
-   `confidence = medium` ou `low`, nunca `high`.
+1. **Given** a transaction whose merchant isn't in memory, **When** it's categorized, **Then** the LLM is called
+   and returns a category/subcategory belonging to the configured taxonomy, with `confidence` equal to `medium` or
+   `low` (never `high` — high confidence only comes from an already-known merchant, see User Story 1).
+2. **Given** an LLM response that doesn't match any category in the configured taxonomy, **When** the result is
+   processed, **Then** the transaction gets the fallback category "Outros" with `confidence = low`, instead of
+   being left without a category or breaking processing.
+3. **Given** a transaction with a generic description insufficient for reliable categorization (e.g. a Bradesco
+   `Histórico` that never names the merchant), **When** it's categorized, **Then** it gets `confidence = medium`
+   or `low`, never `high`.
 
 ---
 
-### User Story 3 - Sinalizar candidatos a transferência entre contas próprias (Priority: P2)
+### User Story 3 - Flag candidates for transfers between the user's own accounts (Priority: P2)
 
-Como usuário, quero que transações que parecem ser transferências entre minhas próprias contas (Bradesco ↔ Inter)
-sejam sinalizadas como candidatas, sem serem excluídas automaticamente do total de gastos/receitas, para eu
-confirmar antes de qualquer exclusão acontecer.
+As a user, I want transactions that look like transfers between my own accounts (Bradesco ↔ Inter) to be flagged
+as candidates, without being automatically excluded from the expense/income total, so I can confirm before any
+exclusion happens.
 
-**Why this priority**: Evita tanto o erro de contar uma transferência interna como gasto real quanto o erro maior
-de excluir do total algo que não era transferência — por isso a decisão final fica para a revisão humana, não para
-esta feature.
+**Why this priority**: It avoids both the error of counting an internal transfer as a real expense and the bigger
+error of excluding something from the total that wasn't actually a transfer — that's why the final decision is
+left to human review, not to this feature.
 
-**Independent Test**: Pode ser testado fornecendo duas transações espelhadas (mesmo valor, contas diferentes, datas
-dentro de uma janela de ±2 dias, padrão de transferência na descrição) e verificando que ambas são sinalizadas como
-candidatas a "Transferência interna", permanecendo no total até confirmação posterior.
+**Independent Test**: Can be tested by providing two mirrored transactions (same amount, different accounts,
+dates within a ±2-day window, a transfer pattern in the description) and verifying both get flagged as candidates
+for "Transferência interna", staying in the total until later confirmation.
 
 **Acceptance Scenarios**:
 
-1. **Given** duas transações com valor espelhado (uma de saída em uma conta, uma de entrada em outra conta do
-   mesmo usuário) dentro de uma janela de até 2 dias, e com padrão de transferência na descrição (PIX/TED/DOC),
-   **When** a categorização roda, **Then** ambas são sugeridas com categoria "Transferência interna", mas
-   permanecem contabilizadas no total até serem confirmadas por uma revisão humana (fora do escopo desta feature).
-2. **Given** uma transação com padrão de transferência na descrição mas sem um valor espelhado correspondente em
-   outra conta dentro da janela de ±2 dias, **When** a categorização roda, **Then** ela não é sinalizada como
-   candidata a transferência — segue o fluxo normal de categorização (User Story 1 ou 2).
+1. **Given** two transactions with a mirrored amount (one outgoing in one account, one incoming in another
+   account of the same user) within up to a 2-day window, and with a transfer pattern in the description
+   (PIX/TED/DOC), **When** categorization runs, **Then** both are suggested with category "Transferência interna",
+   but stay counted in the total until confirmed by human review (out of scope for this feature).
+2. **Given** a transaction with a transfer pattern in the description but no matching mirrored amount in another
+   account within the ±2-day window, **When** categorization runs, **Then** it isn't flagged as a transfer
+   candidate — it follows the normal categorization flow (User Story 1 or 2).
 
 ### Edge Cases
 
-- Merchant memory vazia (primeiro uso do sistema): todas as transações passam pelo fluxo de LLM (User Story 2),
-  nenhuma recebe `high` por falta de histórico.
-- Descrição de transação sem nome de estabelecimento (ex.: Bradesco "PIX ENVIADO"/"PIX RECEBIDO" genérico): não
-  impede a categorização, mas limita a chance de match em memória e tende a resultar em confiança mais baixa.
-- Resposta do LLM fora da taxonomia conhecida: cai em "Outros" com `confidence = low`, nunca falha o processamento.
-- Duas transações de valor espelhado que coincidem por acaso (não são transferência de fato): ficam sinalizadas
-  como candidatas mesmo assim — a decisão final de aceitar ou rejeitar a sugestão é da revisão humana, não desta
+- Empty merchant memory (first use of the system): all transactions go through the LLM flow (User Story 2), none
+  gets `high` for lack of history.
+- A transaction description with no merchant name (e.g. Bradesco's generic "PIX ENVIADO"/"PIX RECEBIDO"): doesn't
+  block categorization, but limits the chance of a memory match and tends to result in lower confidence.
+- An LLM response outside the known taxonomy: falls into "Outros" with `confidence = low`, never breaks
+  processing.
+- Two mirrored-amount transactions that coincide by chance (not actually a transfer): still get flagged as
+  candidates — the final decision to accept or reject the suggestion belongs to human review, not to this
   feature.
-- Transação de parcela de cartão de crédito: recebe categoria normal da compra (ex.: "Vestuário"); a lógica de
-  parcelamento em si (tabela `installments`) é responsabilidade de uma feature futura, não desta.
+- A credit-card installment transaction: gets the purchase's normal category (e.g. "Vestuário"); the installment
+  logic itself (the `installments` table) is a future feature's responsibility, not this one's.
 
 ## Requirements *(mandatory)*
 
 ### Functional Requirements
 
-- **FR-001**: O sistema MUST, para cada transação, verificar se o merchant (derivado da descrição) já possui um
-  mapeamento confirmado em memória antes de considerar qualquer outra fonte de categorização.
-- **FR-002**: Quando o merchant já está confirmado em memória, o sistema MUST atribuir a categoria e subcategoria
-  mapeadas com `confidence = high`, sem chamar o LLM.
-- **FR-003**: Quando o merchant não está confirmado em memória, o sistema MUST chamar o LLM para sugerir uma
-  categoria e subcategoria a partir da taxonomia configurada.
-- **FR-004**: O sistema MUST manter a taxonomia de categorias/subcategorias como configuração extensível (não
-  fixa no código), incluindo as categorias "Outros" e "Transferência interna" descritas no Anexo A do BRD.
-- **FR-005**: Quando a resposta do LLM não corresponder a nenhuma categoria da taxonomia configurada, o sistema
-  MUST atribuir a categoria de fallback "Outros" com `confidence = low`, em vez de falhar ou deixar a transação
-  sem categoria.
-- **FR-006**: `confidence = high` MUST ocorrer apenas via merchant já confirmado em memória (FR-002); toda
-  categorização vinda do LLM MUST resultar em `confidence` igual a `medium` ou `low`.
-- **FR-007**: O sistema MUST identificar transações candidatas a transferência entre contas próprias: padrão de
-  transferência na descrição (PIX/TED/DOC) combinado com um valor espelhado em outra conta do usuário dentro de
-  uma janela de até 2 dias.
-- **FR-008**: Transações candidatas a transferência MUST ser sugeridas com categoria "Transferência interna", mas
-  MUST NOT ser excluídas do total de gastos/receitas nem confirmadas automaticamente por esta feature — a
-  confirmação final é responsabilidade da revisão humana (fora do escopo desta feature).
-- **FR-009**: A confiança de categorização MUST sempre ser representada de forma categórica (`high`/`medium`/
-  `low`), nunca como um valor numérico.
-- **FR-010**: O sistema MUST persistir a categoria, subcategoria e confiança atribuídas a cada transação, prontas
-  para consumo pela etapa de revisão humana.
-- **FR-011**: Esta feature MUST NOT gravar novas confirmações na memória de merchants — isso é responsabilidade de
-  uma feature futura (`update_memory`), acionada após a revisão humana.
+- **FR-001**: For each transaction, the system MUST check whether the merchant (derived from the description)
+  already has a confirmed mapping in memory before considering any other categorization source.
+- **FR-002**: When the merchant is already confirmed in memory, the system MUST assign the mapped category and
+  subcategory with `confidence = high`, without calling the LLM.
+- **FR-003**: When the merchant isn't confirmed in memory, the system MUST call the LLM to suggest a category and
+  subcategory from the configured taxonomy.
+- **FR-004**: The system MUST keep the category/subcategory taxonomy as extensible configuration (not hardcoded),
+  including the "Outros" and "Transferência interna" categories described in the BRD's Appendix A.
+- **FR-005**: When the LLM's response doesn't match any category in the configured taxonomy, the system MUST
+  assign the fallback category "Outros" with `confidence = low`, instead of failing or leaving the transaction
+  without a category.
+- **FR-006**: `confidence = high` MUST only occur via an already-confirmed merchant in memory (FR-002); every
+  LLM-driven categorization MUST result in `confidence` equal to `medium` or `low`.
+- **FR-007**: The system MUST identify transactions that are candidates for transfers between the user's own
+  accounts: a transfer pattern in the description (PIX/TED/DOC) combined with a mirrored amount in another of the
+  user's accounts within a window of up to 2 days.
+- **FR-008**: Transfer-candidate transactions MUST be suggested with category "Transferência interna", but MUST
+  NOT be excluded from the expense/income total nor automatically confirmed by this feature — final confirmation
+  is human review's responsibility (out of scope for this feature).
+- **FR-009**: Categorization confidence MUST always be represented categorically (`high`/`medium`/`low`), never
+  as a numeric value.
+- **FR-010**: The system MUST persist the category, subcategory, and confidence assigned to each transaction,
+  ready for consumption by the human review step.
+- **FR-011**: This feature MUST NOT write new confirmations into merchant memory — that's a future feature's
+  responsibility (`update_memory`), triggered after human review.
 
 ### Key Entities *(include if feature involves data)*
 
-- **Mapeamento de merchant**: associação entre um merchant (derivado da descrição da transação) e uma categoria/
-  subcategoria já confirmada em execuções anteriores. Esta feature apenas lê esse mapeamento; gravar novas
-  confirmações é responsabilidade de uma feature futura.
-- **Taxonomia de categorias**: lista configurável de categorias e subcategorias (Anexo A do BRD), incluindo os
-  fallbacks "Outros" (baixa confiança) e "Transferência interna" (candidatos a transferência).
-- **Transação (estendida)**: a transação normalizada produzida pela feature de ingestão (001), agora com
-  `category`, `subcategory` e `confidence` preenchidos por esta feature.
+- **Merchant mapping**: an association between a merchant (derived from the transaction description) and a
+  category/subcategory already confirmed in previous runs. This feature only reads this mapping; writing new
+  confirmations is a future feature's responsibility.
+- **Category taxonomy**: configurable list of categories and subcategories (BRD Appendix A), including the
+  fallbacks "Outros" (low confidence) and "Transferência interna" (transfer candidates).
+- **Transaction (extended)**: the normalized transaction produced by the ingestion feature (001), now with
+  `category`, `subcategory`, and `confidence` filled in by this feature.
 
 ## Success Criteria *(mandatory)*
 
 ### Measurable Outcomes
 
-- **SC-001**: Transações de merchants já confirmados em meses anteriores são categorizadas automaticamente com
-  alta confiança, sem exigir nenhuma ação do usuário nem chamada ao LLM.
-- **SC-002**: 100% das transações processadas terminam com uma categoria válida da taxonomia — nenhuma transação
-  fica sem categoria, mesmo nos casos de resposta inesperada do LLM.
-- **SC-003**: 100% das transações candidatas a transferência são sinalizadas para confirmação, e nenhuma é
-  excluída do total de gastos/receitas por esta feature.
-- **SC-004**: 100% das transações categorizadas têm um valor de confiança dentre `high`/`medium`/`low` — nenhum
-  valor numérico ou ausente.
-- **SC-005**: Nenhuma transação recebe `confidence = high` sem ter vindo de um merchant já confirmado em memória.
+- **SC-001**: Transactions from merchants already confirmed in previous months are categorized automatically
+  with high confidence, requiring no user action nor LLM call.
+- **SC-002**: 100% of processed transactions end up with a valid taxonomy category — no transaction is left
+  without a category, even in cases of an unexpected LLM response.
+- **SC-003**: 100% of transfer-candidate transactions are flagged for confirmation, and none is excluded from the
+  expense/income total by this feature.
+- **SC-004**: 100% of categorized transactions have a confidence value among `high`/`medium`/`low` — no numeric
+  or missing value.
+- **SC-005**: No transaction gets `confidence = high` without having come from an already-confirmed merchant in
+  memory.
 
 ## Assumptions
 
-- O merchant de uma transação é derivado do texto normalizado de `description_raw`; resolução mais sofisticada de
-  entidade (fuzzy matching entre variações de nome do mesmo estabelecimento) não é necessária nesta primeira
-  versão — pode ser refinada depois, conforme uso real.
-- Transações do Bradesco com descrição genérica (ex.: "PIX ENVIADO"/"PIX RECEBIDO", sem nome do favorecido/
-  pagador) raramente terão match direto em memória de merchant — tendem a passar pelo fluxo de LLM com confiança
-  mais baixa, como já identificado no BRD (seção 6.3).
-- A detecção de transferência (FR-007) considera apenas transações já importadas no sistema para as contas
-  conhecidas do usuário (Bradesco e Inter) dentro do mesmo lote de processamento mensal — não busca em janelas de
-  tempo além de ±2 dias nem em contas fora das já cadastradas.
-- O LLM usado é local (Ollama + Qwen2.5, conforme stack do BRD), mas esta spec é agnóstica ao provedor — a escolha
-  concreta e a forma de troca ficam para o plano técnico.
-- Parcelamentos de cartão de crédito recebem a categoria normal da compra por esta feature; a lógica específica de
-  parcelamento (tabela `installments`, rastreio de parcelas pagas/restantes) é responsabilidade de uma feature
-  futura.
+- A transaction's merchant is derived from the normalized text of `description_raw`; more sophisticated entity
+  resolution (fuzzy matching between name variations of the same merchant) isn't needed in this first version —
+  it can be refined later, based on real usage.
+- Bradesco transactions with a generic description (e.g. "PIX ENVIADO"/"PIX RECEBIDO", with no counterparty name)
+  will rarely have a direct merchant-memory match — they tend to go through the LLM flow with lower confidence, as
+  already identified in the BRD (section 6.3).
+- Transfer detection (FR-007) only considers transactions already imported into the system for the user's known
+  accounts (Bradesco and Inter) within the same monthly processing batch — it doesn't search beyond the ±2-day
+  window nor in accounts other than the ones already registered.
+- The LLM used is local (Ollama + Qwen2.5, per the BRD's stack), but this spec is provider-agnostic — the concrete
+  choice and how to swap it are left to the technical plan.
+- Credit-card installments get the purchase's normal category from this feature; the specific installment logic
+  (the `installments` table, tracking paid/remaining installments) is a future feature's responsibility.

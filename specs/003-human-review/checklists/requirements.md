@@ -1,4 +1,4 @@
-# Specification Quality Checklist: Revisão Humana de Transações
+# Specification Quality Checklist: Human Review of Transactions
 
 **Purpose**: Validate specification completeness and quality before proceeding to planning
 **Created**: 2026-08-23
@@ -31,9 +31,9 @@
 
 ## Notes
 
-- Nenhum item pendente. O BRD (`docs/brd-financial-planner-agent.md`, seções 4, 5.1, 5.2) e a decisão explícita do
-  usuário de incluir a montagem do grafo (StateGraph + interrupt()) dentro desta spec, em vez de uma spec separada,
-  deram contexto suficiente para escrever sem marcadores [NEEDS CLARIFICATION].
-- Escopo desta feature limitado ao node `human_review` + a primeira montagem do grafo real: gravar confirmações na
-  memória de merchants (`update_memory`), excluir transferências confirmadas dos totais (`budget_check`) e insights/
-  relatório ficam para features futuras.
+- No pending items. The BRD (`docs/brd-financial-planner-agent.md`, sections 4, 5.1, 5.2) and the user's explicit
+  decision to include graph assembly (StateGraph + interrupt()) inside this spec, instead of a separate one, gave
+  enough context to write it without [NEEDS CLARIFICATION] markers.
+- This feature's scope is limited to the `human_review` node + the first real graph assembly: writing
+  confirmations into merchant memory (`update_memory`), excluding confirmed transfers from totals
+  (`budget_check`), and insights/report are left for future features.

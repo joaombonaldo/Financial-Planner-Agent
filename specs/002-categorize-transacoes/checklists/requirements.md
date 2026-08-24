@@ -1,4 +1,4 @@
-# Specification Quality Checklist: Categorização de Transações
+# Specification Quality Checklist: Transaction Categorization
 
 **Purpose**: Validate specification completeness and quality before proceeding to planning
 **Created**: 2026-08-23
@@ -31,10 +31,10 @@
 
 ## Notes
 
-- Nenhum item pendente. O BRD (`docs/brd-financial-planner-agent.md`, seções 4, 5.1, 5.2, Anexo A) definiu as
-  regras de negócio com detalhe suficiente para escrever a spec sem marcadores [NEEDS CLARIFICATION].
-- Escopo desta feature limitado ao node `categorize`: a interrupção de revisão humana (`human_review`) e a
-  persistência de correções na memória de merchants (`update_memory`) ficam para features futuras — esta feature
-  só lê a memória existente e sugere transferências, nunca confirma.
-- Depende da saída da feature 001 (ingestão) como entrada — transações já normalizadas, sem categoria/confiança
-  preenchidas.
+- No pending items. The BRD (`docs/brd-financial-planner-agent.md`, sections 4, 5.1, 5.2, Appendix A) defined
+  the business rules with enough detail to write the spec without [NEEDS CLARIFICATION] markers.
+- This feature's scope is limited to the `categorize` node: the human review interrupt (`human_review`) and
+  persisting corrections into merchant memory (`update_memory`) are left for future features — this feature only
+  reads existing memory and suggests transfers, never confirms them.
+- Depends on the output of feature 001 (ingestion) as input — already-normalized transactions, with no
+  category/confidence filled in.

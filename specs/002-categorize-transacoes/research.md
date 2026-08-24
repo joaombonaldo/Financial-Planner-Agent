@@ -1,65 +1,66 @@
-# Research: Categorização de Transações
+# Research: Transaction Categorization
 
-Nenhum `NEEDS CLARIFICATION` restou no Technical Context — as regras de negócio já estão fixadas no BRD (seções 4,
-5.1, 5.2, Anexo A). Este documento registra as decisões técnicas necessárias para implementá-las.
+No `NEEDS CLARIFICATION` was left in the Technical Context — the business rules are already fixed in the BRD
+(sections 4, 5.1, 5.2, Appendix A). This document records the technical decisions needed to implement them.
 
-## Ordem de avaliação: transferência vs. memória vs. LLM
+## Evaluation order: transfer vs. memory vs. LLM
 
-- **Decision**: para cada transação, avaliar nesta ordem: (1) padrão de transferência (PIX/TED/DOC) com valor
-  espelhado em outra conta dentro de ±2 dias → sugerir "Transferência interna"; (2) merchant já confirmado em
-  memória → categoria mapeada com `confidence = high`; (3) caso contrário, chamar o LLM.
-- **Rationale**: transferência é uma característica da transação em si (padrão + par espelhado), não do merchant —
-  avaliar antes evita que uma eventual entrada genérica de memória (ex.: um "PIX ENVIADO" mapeado por engano no
-  passado) mascare uma transferência real. Isso é consistente com o BRD (5.2): a sugestão de transferência é
-  sempre do `categorize`, nunca uma aplicação automática de memória.
-- **Alternatives considered**: checar memória primeiro — rejeitado porque, como o histórico do Bradesco nunca cita
-  o favorecido/pagador (BRD 6.3), um merchant genérico tipo "PIX ENVIADO" poderia acabar em memória com uma
-  categoria errada e mascarar transferências reais em execuções futuras.
+- **Decision**: for each transaction, evaluate in this order: (1) transfer pattern (PIX/TED/DOC) with a mirrored
+  amount in another account within ±2 days → suggest "Transferência interna"; (2) merchant already confirmed in
+  memory → mapped category with `confidence = high`; (3) otherwise, call the LLM.
+- **Rationale**: a transfer is a characteristic of the transaction itself (pattern + mirrored pair), not of the
+  merchant — evaluating it first prevents a generic memory entry (e.g. a "PIX ENVIADO" mistakenly mapped in the
+  past) from masking a real transfer. This is consistent with the BRD (5.2): the transfer suggestion is always
+  `categorize`'s job, never an automatic application of memory.
+- **Alternatives considered**: checking memory first — rejected because, since Bradesco's `Histórico` never names
+  the counterparty (BRD 6.3), a generic merchant like "PIX ENVIADO" could end up in memory with a wrong category
+  and mask real transfers in future runs.
 
-## Identificação de merchant
+## Merchant identification
 
-- **Decision**: o merchant é o texto normalizado (trim + lowercase) de `description_raw`. Sem normalização
-  adicional (remoção de números de documento, fuzzy matching) nesta primeira versão.
-- **Rationale**: simplicidade pragmática (Princípio I) — refinar a normalização é um ajuste incremental de baixo
-  risco que pode vir depois, guiado por merchants reais observados na revisão mensal.
-- **Alternatives considered**: normalização mais agressiva (remover números, stemming) — rejeitada por
-  over-engineering nesta fase; documentado como possível melhoria futura no data-model.md.
+- **Decision**: the merchant is the normalized (trim + lowercase) text of `description_raw`. No additional
+  normalization (removing document numbers, fuzzy matching) in this first version.
+- **Rationale**: pragmatic simplicity (Principle I) — refining normalization is a low-risk incremental change
+  that can come later, guided by real merchants observed during monthly review.
+- **Alternatives considered**: more aggressive normalization (removing numbers, stemming) — rejected as
+  over-engineering at this stage; documented as a possible future improvement in data-model.md.
 
-## Detecção de transferência (padrão + janela)
+## Transfer detection (pattern + window)
 
-- **Decision**: padrão de transferência = descrição contém um dos termos `PIX`, `TED`, `DOC` (case-insensitive).
-  Valor espelhado = outra transação, em conta diferente do mesmo usuário, com o mesmo valor absoluto e
-  `type` oposto (uma `income`, uma `expense`), com `date` dentro de ±2 dias.
-- **Rationale**: reflete literalmente a regra do BRD 5.2, e é implementável sem qualquer análise textual adicional
-  — importante porque o histórico do Bradesco não permite matching por nome (BRD 6.3).
-- **Alternatives considered**: exigir também correspondência textual entre as duas transações — rejeitado porque o
-  BRD já identificou que essa correspondência é fraca/inexistente do lado Bradesco.
+- **Decision**: transfer pattern = the description contains one of the terms `PIX`, `TED`, `DOC`
+  (case-insensitive). Mirrored amount = another transaction, in a different account of the same user, with the
+  same absolute amount and the opposite `type` (one `income`, one `expense`), with `date` within ±2 days.
+- **Rationale**: literally reflects the BRD 5.2 rule, and is implementable without any additional text analysis —
+  important because Bradesco's `Histórico` doesn't allow name-based matching (BRD 6.3).
+- **Alternatives considered**: also requiring a textual match between the two transactions — rejected because the
+  BRD already identified that this correspondence is weak/nonexistent on the Bradesco side.
 
-## Abstração do LLM
+## LLM abstraction
 
-- **Decision**: usar `init_chat_model` (LangChain) como ponto único de criação do client de LLM, configurado via
-  variáveis de ambiente (`OLLAMA_MODEL`, `OLLAMA_BASE_URL`) já previstas no BRD (seção 7). `llm/client.py` expõe
-  uma função `categorize_transaction(description, taxonomy) -> (category, subcategory, confidence)` — o node não
-  conhece o provedor concreto.
-- **Rationale**: Princípio III da constituição — troca futura para Claude/OpenAI sem alterar `nodes/categorize.py`.
-- **Alternatives considered**: chamar o cliente Ollama diretamente — rejeitado, quebraria a trocabilidade exigida
-  pela constituição.
+- **Decision**: use `init_chat_model` (LangChain) as the single point of LLM client creation, configured via
+  environment variables (`OLLAMA_MODEL`, `OLLAMA_BASE_URL`) already planned in the BRD (section 7). `llm/client.py`
+  exposes a `categorize_transaction(description, taxonomy) -> (category, subcategory, confidence)` function — the
+  node doesn't know the concrete provider.
+- **Rationale**: constitution Principle III — future swap to Claude/OpenAI without changing
+  `nodes/categorize.py`.
+- **Alternatives considered**: calling the Ollama client directly — rejected, it would break the swappability
+  required by the constitution.
 
-## Fallback de categoria fora da taxonomia
+## Fallback for a category outside the taxonomy
 
-- **Decision**: qualquer resposta do LLM que não corresponda exatamente (após normalização simples) a uma
-  categoria/subcategoria da taxonomia configurada é substituída por `category = "Outros"`, `confidence = low`.
-- **Rationale**: FR-005/SC-002 — nenhuma transação pode ficar sem categoria válida; "Outros" já é a categoria de
-  fallback definida no Anexo A do BRD.
-- **Alternatives considered**: re-perguntar ao LLM com um prompt mais restrito até obter uma categoria válida —
-  rejeitado por complexidade desnecessária nesta fase (Princípio I); pode ser revisitado se a taxa de fallback se
-  mostrar alta na prática.
+- **Decision**: any LLM response that doesn't exactly match (after simple normalization) a category/subcategory
+  in the configured taxonomy is replaced with `category = "Outros"`, `confidence = low`.
+- **Rationale**: FR-005/SC-002 — no transaction can end up without a valid category; "Outros" is already the
+  fallback category defined in the BRD's Appendix A.
+- **Alternatives considered**: re-prompting the LLM with a stricter prompt until getting a valid category —
+  rejected as unnecessary complexity at this stage (Principle I); can be revisited if the fallback rate proves
+  high in practice.
 
-## Estratégia de testes
+## Testing strategy
 
-- **Decision**: LLM sempre mockado (função `categorize_transaction` substituída por um dublê determinístico nos
-  testes); fixtures cobrindo merchant já confirmado, merchant novo, resposta do LLM fora da taxonomia, e par de
-  transações espelhadas dentro/fora da janela de 2 dias.
-- **Rationale**: alinhado à constituição ("Padrões de Teste") e às User Stories da spec.
-- **Alternatives considered**: testes de integração contra um Ollama real — rejeitado como dependência de teste;
-  fica como validação manual (quickstart.md), não como parte da suíte automatizada.
+- **Decision**: the LLM is always mocked (the `categorize_transaction` function replaced by a deterministic
+  double in tests); fixtures covering an already-confirmed merchant, a new merchant, an LLM response outside the
+  taxonomy, and a pair of mirrored transactions inside/outside the 2-day window.
+- **Rationale**: aligned with the constitution ("Testing Standards") and with the spec's User Stories.
+- **Alternatives considered**: integration tests against a real Ollama — rejected as a test dependency; left as
+  manual validation (quickstart.md), not part of the automated suite.

@@ -1,9 +1,12 @@
-"""Categorização via LLM para merchants sem match em memória (contracts/llm-categorizer.md).
+"""LLM-based categorization for merchants with no memory match (contracts/llm-categorizer.md).
 
-Único módulo desta feature que efetivamente invoca llm/client.py. Nunca retorna
-confidence="high" (reservado a matches de merchant memory) e sempre retorna uma
-categoria válida da taxonomia — aplica o fallback "Outros"/"low" internamente quando a
-resposta do LLM não corresponde a nenhuma categoria conhecida.
+The only module in this feature that actually invokes llm/client.py. Never returns
+confidence="high" (reserved for merchant-memory matches) and always returns a valid
+taxonomy category — applies the "Outros"/"low" fallback internally when the LLM's
+response doesn't match any known category.
+
+The prompt template stays in Portuguese on purpose: it must keep working with the
+Portuguese taxonomy and with real (Portuguese) transaction descriptions.
 """
 
 from typing import Literal, Protocol

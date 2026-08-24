@@ -1,7 +1,7 @@
-"""Normalização de merchant key e leitura da memória confirmada.
+"""Merchant key normalization and reading of confirmed memory.
 
-Esta feature só lê merchant_memory (via db/repository.py) — gravar novas confirmações é
-responsabilidade de uma feature futura (update_memory).
+This feature only reads merchant_memory (via db/repository.py) — writing new
+confirmations is a future feature's responsibility (update_memory).
 """
 
 import sqlite3
