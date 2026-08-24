@@ -115,6 +115,30 @@ def list_transactions_by_month(conn: sqlite3.Connection, month_ref: str) -> list
     return [_row_to_transaction(row) for row in rows]
 
 
+def upsert_merchant_category(
+    conn: sqlite3.Connection,
+    merchant_key: str,
+    category: str,
+    subcategory: str | None,
+) -> None:
+    """Insert or overwrite a merchant's confirmed category mapping.
+
+    Idempotent by construction (ON CONFLICT), not by any application-level dedup
+    logic — see specs/004-update-memory/research.md.
+    """
+    conn.execute(
+        """
+        INSERT INTO merchant_memory (merchant_key, category, subcategory)
+        VALUES (?, ?, ?)
+        ON CONFLICT(merchant_key) DO UPDATE SET
+            category = excluded.category,
+            subcategory = excluded.subcategory
+        """,
+        (merchant_key, category, subcategory),
+    )
+    conn.commit()
+
+
 def list_pending_review(conn: sqlite3.Connection, month_ref: str) -> list[Transaction]:
     """Transactions not yet decided by a human nor by confirmed memory.
 
