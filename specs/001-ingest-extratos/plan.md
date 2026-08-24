@@ -1,4 +1,4 @@
-# Implementation Plan: Ingestão de Extratos Bancários
+# Implementation Plan: Bank Statement Ingestion
 
 **Branch**: `001-ingest-extratos` | **Date**: 2026-08-23 | **Spec**: [spec.md](./spec.md)
 
@@ -8,52 +8,52 @@
 
 ## Summary
 
-Implementar o node `detect_and_parse`: dado um arquivo CSV exportado manualmente do Bradesco ou do Inter, detectar
-automaticamente o banco de origem, extrair apenas as linhas de transação real (ignorando metadado, headers
-repetidos e rodapé), normalizar valor/data para um formato canônico, calcular hash de deduplicação e persistir
-transações prontas para a etapa de categorização — sem duplicar em reimportações e sem falhar silenciosamente
-quando o arquivo não reconciliar ou não for reconhecido.
+Implement the `detect_and_parse` node: given a CSV file manually exported from Bradesco or Inter, automatically
+detect the source bank, extract only the real transaction lines (ignoring metadata, repeated headers, and
+footers), normalize amount/date into a canonical format, compute a deduplication hash, and persist transactions
+ready for the categorization step — without duplicating on reimport and without failing silently when the file
+doesn't reconcile or isn't recognized.
 
 ## Technical Context
 
 **Language/Version**: Python 3.12 (`backend/.python-version`)
 
-**Primary Dependencies**: pandas + openpyxl (leitura/parsing de CSV), `sqlite3` (stdlib, via `db/repository.py`)
+**Primary Dependencies**: pandas + openpyxl (CSV reading/parsing), `sqlite3` (stdlib, via `db/repository.py`)
 
-**Storage**: SQLite (`backend/src/financial_planner/db/schema.sql`) — esta feature só precisa da tabela
-`transactions` (colunas do schema normalizado descrito no BRD 6.1) para checar `dedup_hash` já existentes
+**Storage**: SQLite (`backend/src/financial_planner/db/schema.sql`) — this feature only needs the `transactions`
+table (columns from the normalized schema described in BRD 6.1) to check existing `dedup_hash` values
 
-**Testing**: pytest, com fixtures CSV pequenas e determinísticas por banco (2-3 linhas + casos de borda), conforme
-`Padrões de Teste` da constituição
+**Testing**: pytest, with small, deterministic CSV fixtures per bank (2-3 lines + edge cases), per the
+constitution's "Testing Standards"
 
-**Target Platform**: CLI local (macOS/Linux), execução mensal single-user
+**Target Platform**: local CLI (macOS/Linux), single-user monthly run
 
-**Project Type**: Projeto único dentro do monorepo (`backend/`) — sem componente de frontend nesta fase
+**Project Type**: single project inside the monorepo (`backend/`) — no frontend component at this stage
 
-**Performance Goals**: N/A — volume mensal da ordem de dezenas de transações por banco; não há requisito de
-throughput
+**Performance Goals**: N/A — monthly volume on the order of dozens of transactions per bank; no throughput
+requirement
 
-**Constraints**: Não deve depender de LLM nem de rede (`detect_and_parse` não usa LLM, por design do BRD seção 4);
-deve ser resiliente às particularidades de arquivo já documentadas na spec (BOM, seções duplicadas, coluna de
-descrição vazia)
+**Constraints**: Must not depend on the LLM nor on the network (`detect_and_parse` doesn't use an LLM, by BRD
+section 4's design); must be resilient to the file quirks already documented in the spec (BOM, duplicated
+sections, blank description column)
 
-**Scale/Scope**: 2 bancos suportados (Bradesco, Inter), ~1 mês de extrato por execução (dezenas de linhas)
+**Scale/Scope**: 2 supported banks (Bradesco, Inter), ~1 month of statement per run (dozens of lines)
 
 ## Constitution Check
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-| Princípio | Aplicação nesta feature | Status |
+| Principle | Application in this feature | Status |
 |---|---|---|
-| I. Simplicidade Pragmática | Um parser por banco (adapter pattern), sem abstração além do necessário para 2 bancos conhecidos | PASS |
-| II. Nodes Isolados de Infraestrutura | `nodes/ingest.py` orquestra; leitura de arquivo fica em `parsers/`, acesso a banco (checagem de dedup) fica em `db/repository.py` — node não toca pandas nem sqlite3 diretamente | PASS |
-| III. LLM Trocável por Abstração | N/A — este node não usa LLM | N/A |
-| IV. Persistência Portável | Query de `dedup_hash` usa SQL padrão (sem sintaxe específica de SQLite), compatível com troca futura para Postgres | PASS |
-| V. Revisão Humana Obrigatória | N/A — nenhuma decisão sensível (categorização, transferência) é tomada nesta feature | N/A |
-| VI. Confiança Categórica | N/A — `confidence` não é preenchido por esta feature | N/A |
-| VII. Deduplicação Determinística | Requisito central (FR-006): hash de `date+description_raw+amount+account` | PASS |
+| I. Pragmatic Simplicity | One parser per bank (adapter pattern), no abstraction beyond what's needed for 2 known banks | PASS |
+| II. Nodes Isolated from Infrastructure | `nodes/ingest.py` orchestrates; file reading lives in `parsers/`, database access (dedup check) lives in `db/repository.py` — the node never touches pandas or sqlite3 directly | PASS |
+| III. Swappable LLM via Abstraction | N/A — this node doesn't use an LLM | N/A |
+| IV. Portable Persistence | The `dedup_hash` query uses standard SQL (no SQLite-specific syntax), compatible with a future Postgres switch | PASS |
+| V. Mandatory Human Review | N/A — no sensitive decision (categorization, transfer) is made in this feature | N/A |
+| VI. Categorical Confidence | N/A — `confidence` isn't filled in by this feature | N/A |
+| VII. Deterministic Deduplication | Central requirement (FR-006): hash of `date+description_raw+amount+account` | PASS |
 
-Nenhuma violação — Complexity Tracking não se aplica.
+No violations — Complexity Tracking doesn't apply.
 
 ## Project Structure
 
@@ -74,31 +74,31 @@ specs/001-ingest-extratos/
 ```text
 backend/
 ├── src/financial_planner/
-│   ├── state.py                     # schema tipado da Transação normalizada (domínio)
+│   ├── state.py                     # typed schema for the normalized Transaction (domain)
 │   ├── nodes/
-│   │   └── ingest.py                # node detect_and_parse — orquestra parser + repository
+│   │   └── ingest.py                # detect_and_parse node — orchestrates parser + repository
 │   ├── parsers/
-│   │   ├── base.py                  # contrato comum do adapter de parsing (ver contracts/)
-│   │   ├── bradesco.py              # adapter Bradesco
-│   │   ├── inter.py                 # adapter Inter
-│   │   └── detect.py                # detecção automática de banco a partir do arquivo
+│   │   ├── base.py                  # shared parsing-adapter contract (see contracts/)
+│   │   ├── bradesco.py              # Bradesco adapter
+│   │   ├── inter.py                 # Inter adapter
+│   │   └── detect.py                # automatic bank detection from the file
 │   └── db/
-│       ├── schema.sql               # tabela transactions (subset usado por esta feature)
-│       └── repository.py            # checagem/persistência de dedup_hash
+│       ├── schema.sql               # transactions table (subset used by this feature)
+│       └── repository.py            # dedup_hash check/persistence
 └── tests/
     ├── fixtures/
-    │   ├── bradesco/                # CSVs pequenos: caso feliz + casos de borda
-    │   └── inter/                   # idem para Inter
+    │   ├── bradesco/                # small CSVs: happy path + edge cases
+    │   └── inter/                   # same, for Inter
     └── test_parsers.py
 
-frontend/                             # não usado nesta fase
+frontend/                             # not used at this stage
 ```
 
-**Structure Decision**: Projeto único em `backend/`, reaproveitando a estrutura já definida no BRD (seção 7).
-`parsers/` concentra o adapter pattern por banco (Princípio II — isola pandas/leitura de arquivo dos nodes);
-`db/repository.py` concentra o acesso a SQLite para checagem de `dedup_hash`. `frontend/` permanece vazio, fora do
-escopo desta feature e da Fase 1 como um todo.
+**Structure Decision**: Single project in `backend/`, reusing the structure already defined in the BRD (section
+7). `parsers/` holds the per-bank adapter pattern (Principle II — isolates pandas/file reading from the nodes);
+`db/repository.py` holds SQLite access for the `dedup_hash` check. `frontend/` stays empty, out of scope for this
+feature and for Phase 1 as a whole.
 
 ## Complexity Tracking
 
-*Não aplicável — nenhuma violação de constituição identificada.*
+*Not applicable — no constitution violations identified.*

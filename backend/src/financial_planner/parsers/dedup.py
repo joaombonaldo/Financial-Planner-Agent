@@ -1,7 +1,7 @@
-"""Hash de deduplicação de transações (Princípio VII da constituição).
+"""Transaction deduplication hash (Principle VII of the constitution).
 
-Calculado sobre valores já normalizados (não sobre o texto cru do CSV), para que a
-mesma transação gere o mesmo hash mesmo com pequenas variações textuais entre exports.
+Computed over already-normalized values (not over the CSV's raw text), so the same
+transaction produces the same hash even with minor textual variation between exports.
 """
 
 import hashlib

@@ -1,4 +1,4 @@
-# Specification Quality Checklist: Ingestão de Extratos Bancários
+# Specification Quality Checklist: Bank Statement Ingestion
 
 **Purpose**: Validate specification completeness and quality before proceeding to planning
 **Created**: 2026-08-23
@@ -31,8 +31,8 @@
 
 ## Notes
 
-- Nenhum item pendente. O BRD (`docs/brd-financial-planner-agent.md`, seções 4, 5.1–5.2, 6.1, 6.3) forneceu detalhe
-  suficiente sobre os dois bancos suportados e as regras de negócio para escrever a spec sem marcadores
-  [NEEDS CLARIFICATION].
-- Escopo desta feature limitado ao node `detect_and_parse`: categorização, confirmação de transferência entre
-  contas e parcelamentos ficam para features posteriores.
+- No pending items. The BRD (`docs/brd-financial-planner-agent.md`, sections 4, 5.1–5.2, 6.1, 6.3) provided
+  enough detail about the two supported banks and the business rules to write the spec without
+  [NEEDS CLARIFICATION] markers.
+- This feature's scope is limited to the `detect_and_parse` node: categorization, transfer confirmation between
+  accounts, and installments are left for later features.

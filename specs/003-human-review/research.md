@@ -1,69 +1,70 @@
-# Research: Revisão Humana de Transações
+# Research: Human Review of Transactions
 
-## Pending review = `confidence != 'high'`, sem condição especial pra transferência
+## Pending review = `confidence != 'high'`, no special condition for transfers
 
-- **Decision**: um item está pendente de revisão se, e somente se, `confidence != 'high'`. Não existe uma
-  condição OR separada para candidatos a transferência.
-- **Rationale**: pela feature 002, `category = "Transferência interna"` só é atribuída com `confidence = medium` —
-  nunca `high`. Logo, todo candidato a transferência já está coberto pela condição `confidence != 'high'`; uma
-  condição adicional seria redundante. Simplifica FR-001 e a query de `list_pending_review`.
-- **Alternatives considered**: `WHERE confidence != 'high' OR category = 'Transferência interna'` — rejeitado por
-  ser logicamente redundante dado o invariante estabelecido na feature 002.
+- **Decision**: an item is pending review if, and only if, `confidence != 'high'`. There's no separate OR
+  condition for transfer candidates.
+- **Rationale**: per feature 002, `category = "Transferência interna"` is only ever assigned with
+  `confidence = medium` — never `high`. So every transfer candidate is already covered by the
+  `confidence != 'high'` condition; an extra condition would be redundant. Simplifies FR-001 and the
+  `list_pending_review` query.
+- **Alternatives considered**: `WHERE confidence != 'high' OR category = 'Transferência interna'` — rejected as
+  logically redundant given the invariant established in feature 002.
 
-## Múltiplas interrupções em um único node
+## Multiple interruptions in a single node
 
-- **Decision**: `nodes/review.py` consulta os itens pendentes do mês a cada execução/retomada, e itera sobre eles
-  chamando `interrupt(payload)` uma vez por item, dentro de um laço `for`. A resposta do usuário (`Command(resume=
-  ...)`) é validada e persistida imediatamente antes de passar para o próximo item do laço.
-- **Rationale**: é o padrão recomendado pelo próprio LangGraph para HITL com múltiplas perguntas sequenciais numa
-  única execução de node — ao retomar, o node é reexecutado do início, e cada `interrupt()` já respondido devolve
-  o valor de resume gravado no checkpoint, sem re-perguntar. Como a lista de pendentes é consultada no banco a
-  cada execução (não capturada uma vez em memória), itens já decididos em uma retomada anterior simplesmente não
-  aparecem mais na lista — FR-007 ("não perguntar de novo") sai de graça da combinação
-  checkpointer + consulta sempre fresca ao banco.
-- **Alternatives considered**: um node por item pendente, com uma aresta condicional que decide se volta pro
-  mesmo node ou segue adiante — rejeitado por adicionar complexidade de grafo (Princípio I) sem ganho real sobre
-  o laço dentro de um único node.
+- **Decision**: `nodes/review.py` queries the month's pending items on every run/resume, and iterates over them
+  calling `interrupt(payload)` once per item, inside a `for` loop. The user's response (`Command(resume=...)`) is
+  validated and persisted immediately before moving to the next item in the loop.
+- **Rationale**: it's LangGraph's own recommended pattern for HITL with multiple sequential questions in a single
+  node run — on resume, the node re-executes from the start, and each already-answered `interrupt()` returns the
+  resume value recorded in the checkpoint, without re-asking. Since the pending list is queried from the database
+  on every run (not captured once in memory), items already decided in a previous resume simply no longer appear
+  in the list — FR-007 ("don't ask again") falls out for free from the combination of the checkpointer + always
+  querying the database fresh.
+- **Alternatives considered**: one node per pending item, with a conditional edge deciding whether to loop back to
+  the same node or move on — rejected as adding graph complexity (Principle I) with no real gain over the loop
+  inside a single node.
 
-## Validação de categoria dentro do node, não na CLI
+## Category validation inside the node, not in the CLI
 
-- **Decision**: a validação da categoria/subcategoria informada manualmente (FR-009) acontece dentro de
-  `nodes/review.py`, usando o mesmo `Taxonomy` da feature 002. Se a resposta for inválida, o node chama
-  `interrupt()` de novo para o **mesmo** item, agora com uma mensagem de erro no payload, sem avançar para o
-  próximo item.
-- **Rationale**: mantém a CLI genérica — ela só exibe o payload que o node manda e devolve uma linha de texto,
-  sem conhecer regras de categorização. Isso preserva o Princípio II (regra de negócio fora da camada de
-  interface) e permite testar a validação sem terminal nenhum.
-- **Alternatives considered**: validar na CLI antes de enviar o resume — rejeitado porque duplicaria a lógica de
-  taxonomia em duas camadas, e a CLI passaria a conhecer regra de negócio que não é dela.
+- **Decision**: validating a manually provided category/subcategory (FR-009) happens inside `nodes/review.py`,
+  using the same `Taxonomy` from feature 002. If the response is invalid, the node calls `interrupt()` again for
+  the **same** item, now with an error message in the payload, without moving to the next item.
+- **Rationale**: keeps the CLI generic — it only displays the payload the node sends and returns a line of text,
+  with no knowledge of categorization rules. This preserves Principle II (business rules stay out of the
+  interface layer) and lets validation be tested with no terminal at all.
+- **Alternatives considered**: validating in the CLI before sending the resume — rejected because it would
+  duplicate taxonomy logic across two layers, and the CLI would end up knowing a business rule that isn't its
+  responsibility.
 
-## Formato da resposta do usuário
+## User response format
 
-- **Decision**: mesmo formato de texto usado pelo `llm_categorizer` (feature 002): `"categoria|subcategoria"`
-  (subcategoria vazia se não houver), mais duas palavras-chave especiais: `aceitar` (mantém a sugestão como está)
-  e `confirmar` (só para candidatos a transferência — mantém "Transferência interna").
-- **Rationale**: reaproveita um formato e um parser já validados na feature anterior, em vez de inventar um novo
-  protocolo de resposta — Princípio I.
-- **Alternatives considered**: prompt interativo item por item (ex.: biblioteca de TUI com menus) — rejeitado como
-  over-engineering para uma CLI de validação de fluxo (BRD seção 3: "Foco em validar o fluxo do agente antes de
-  investir em UI").
+- **Decision**: the same text format used by `llm_categorizer` (feature 002): `"category|subcategory"` (blank
+  subcategory if none), plus two special keywords: `aceitar` ("accept" — keeps the suggestion as-is) and
+  `confirmar` ("confirm" — only for transfer candidates, keeps "Transferência interna").
+- **Rationale**: reuses a format and parser already validated in the previous feature, instead of inventing a new
+  response protocol — Principle I.
+- **Alternatives considered**: an item-by-item interactive prompt (e.g. a TUI library with menus) — rejected as
+  over-engineering for a flow-validation CLI (BRD section 3: "Focus on validating the agent flow before investing
+  in UI").
 
 ## Checkpointer
 
-- **Decision**: `langgraph-checkpoint-sqlite` (`SqliteSaver`), apontando para o mesmo arquivo `.db` usado por
-  `db/repository.py`. `thread_id` do grafo é o `month_ref` (ex.: `"2026-08"`), conforme já definido no BRD.
-- **Rationale**: é a peça que torna FR-006/FR-007/SC-002 possíveis — sem checkpointer persistente, qualquer
-  interrupção perderia o progresso da sessão. BRD já planeja a troca futura para
-  `langgraph-checkpoint-postgres` "mesma interface", então usar a variante SQLite agora não compromete o
-  Princípio IV.
-- **Alternatives considered**: checkpointer em memória (`MemorySaver`) — rejeitado porque não sobrevive a uma
-  interrupção real de processo, violando diretamente SC-002.
+- **Decision**: `langgraph-checkpoint-sqlite` (`SqliteSaver`), pointing at the same `.db` file used by
+  `db/repository.py`. The graph's `thread_id` is `month_ref` (e.g. `"2026-08"`), as already defined in the BRD.
+- **Rationale**: it's the piece that makes FR-006/FR-007/SC-002 possible — without a persistent checkpointer, any
+  interruption would lose the session's progress. The BRD already plans a future swap to
+  `langgraph-checkpoint-postgres` "same interface", so using the SQLite variant now doesn't compromise
+  Principle IV.
+- **Alternatives considered**: an in-memory checkpointer (`MemorySaver`) — rejected because it doesn't survive a
+  real process interruption, directly violating SC-002.
 
-## Estratégia de testes
+## Testing strategy
 
-- **Decision**: testes chamam o grafo compilado via `.invoke()`/`.stream()` com um `thread_id` de teste, capturam
-  o payload do primeiro `interrupt()`, respondem com `Command(resume=...)`, e repetem até o grafo terminar —
-  tudo isso dentro do processo de teste, sem subprocess nem terminal real.
-- **Rationale**: mantém a suíte determinística e rápida, alinhado à constituição.
-- **Alternatives considered**: testar `interface/cli.py` fim a fim simulando stdin — mantido como um teste
-  adicional leve (smoke test), não como a forma principal de testar a lógica de decisão do node.
+- **Decision**: tests call the compiled graph via `.invoke()`/`.stream()` with a test `thread_id`, capture the
+  first `interrupt()`'s payload, respond with `Command(resume=...)`, and repeat until the graph finishes — all of
+  it inside the test process, with no subprocess nor real terminal.
+- **Rationale**: keeps the suite deterministic and fast, aligned with the constitution.
+- **Alternatives considered**: testing `interface/cli.py` end-to-end by simulating stdin — kept as a light
+  additional test (smoke test), not as the main way to test the node's decision logic.

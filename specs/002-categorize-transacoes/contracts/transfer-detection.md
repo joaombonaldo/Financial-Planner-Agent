@@ -1,21 +1,21 @@
-# Contract: Detecção de Transferência
+# Contract: Transfer Detection
 
 ## `categorization/transfer_detection.py`
 
-**Entrada**: uma transação candidata + a lista de todas as outras transações já importadas no mesmo lote mensal
-(de todas as contas conhecidas do usuário).
+**Input**: a candidate transaction + the list of all other transactions already imported in the same monthly
+batch (across all of the user's known accounts).
 
-**Saída**: `bool` (é candidata a transferência) — ou, na integração com o node, diretamente a atribuição
-`category = "Transferência interna"`, `confidence = "medium"` quando `True`.
+**Output**: `bool` (is a transfer candidate) — or, when wired into the node, directly the assignment
+`category = "Transferência interna"`, `confidence = "medium"` when `True`.
 
-**Garantias que o contrato exige**:
-- Só considera transações de **contas diferentes** da transação avaliada (nunca compara uma transação com outra
-  da mesma conta).
-- Exige padrão de transferência na descrição (`PIX`, `TED` ou `DOC`, case-insensitive) **e** valor espelhado
-  (mesmo valor absoluto, `type` oposto) em outra conta, com `date` dentro de uma janela de ±2 dias — as duas
-  condições são obrigatórias, não bastam isoladamente.
-- Nunca exclui a transação do total nem marca como confirmada — apenas sinaliza a sugestão (FR-008).
+**Guarantees the contract requires**:
+- Only considers transactions from **accounts different** from the one being evaluated (never compares a
+  transaction with another from the same account).
+- Requires a transfer pattern in the description (`PIX`, `TED`, or `DOC`, case-insensitive) **and** a mirrored
+  amount (same absolute value, opposite `type`) in another account, with `date` within a ±2-day window — both
+  conditions are mandatory, neither is sufficient alone.
+- Never excludes the transaction from the total nor marks it as confirmed — only flags the suggestion (FR-008).
 
-## Uso pelo node `categorize`
+## Usage by the `categorize` node
 
-Avaliada antes de `merchant_memory.py` e antes de `llm_categorizer.py` (ver research.md — ordem de avaliação).
+Evaluated before `merchant_memory.py` and before `llm_categorizer.py` (see research.md — evaluation order).

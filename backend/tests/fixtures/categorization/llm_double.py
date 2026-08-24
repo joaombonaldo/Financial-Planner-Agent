@@ -1,4 +1,4 @@
-"""Dublê determinístico do chat model, para testes que nunca dependem de Ollama real."""
+"""Deterministic chat model double, for tests that never depend on a real Ollama."""
 
 from dataclasses import dataclass
 
@@ -9,7 +9,7 @@ class _FakeResponse:
 
 
 class FakeChatModel:
-    """Sempre retorna a mesma resposta fixa, configurada na construção."""
+    """Always returns the same fixed response, configured at construction."""
 
     def __init__(self, response_text: str):
         self._response_text = response_text

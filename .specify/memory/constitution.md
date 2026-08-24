@@ -3,13 +3,13 @@ Sync Impact Report
 - Version change: (template) → 1.0.0
 - Modified principles: n/a (initial ratification)
 - Added sections:
-  - Core Principles: I. Simplicidade Pragmática, II. Nodes Isolados de Infraestrutura,
-    III. LLM Trocável por Abstração, IV. Persistência Portável, V. Revisão Humana
-    Obrigatória para Decisões Sensíveis, VI. Confiança Categórica, VII. Deduplicação
-    Determinística
-  - Proteção de Dados Sensíveis
-  - Padrões de Teste
-  - Fora de Escopo (Fase Atual)
+  - Core Principles: I. Pragmatic Simplicity, II. Nodes Isolated from Infrastructure,
+    III. Swappable LLM via Abstraction, IV. Portable Persistence, V. Mandatory Human
+    Review for Sensitive Decisions, VI. Categorical Confidence, VII. Deterministic
+    Deduplication
+  - Sensitive Data Protection
+  - Testing Standards
+  - Out of Scope (Current Phase)
   - Governance
 - Removed sections: none (initial version)
 - Follow-up TODOs: none
@@ -19,86 +19,88 @@ Sync Impact Report
 
 ## Core Principles
 
-### I. Simplicidade Pragmática
-Este é um projeto pessoal de aprendizado de agentes de IA (LangGraph), não um produto
-comercial. Toda decisão de design DEVE ser avaliada pelo critério "meio-termo, sem
-exagero": nem o atalho que compromete a arquitetura, nem a engenharia excessiva que
-antecipa requisitos hipotéticos. Abstrações, camadas ou padrões só são justificados
-quando resolvem uma necessidade concreta já identificada no projeto — não uma
-possibilidade futura.
+### I. Pragmatic Simplicity
+This is a personal project for learning AI agents (LangGraph), not a commercial
+product. Every design decision MUST be evaluated by the "middle ground, no overkill"
+criterion: neither the shortcut that compromises the architecture, nor the
+over-engineering that anticipates hypothetical requirements. Abstractions, layers, or
+patterns are only justified when they solve a concrete need already identified in the
+project — not a future possibility.
 
-### II. Nodes Isolados de Infraestrutura
-Nodes do grafo (LangGraph) NUNCA acessam banco de dados, LLM ou arquivos diretamente.
-Todo acesso a infraestrutura passa por módulos dedicados (ex.: `db/repository.py`,
-cliente de LLM abstraído). Isso preserva a direção de dependência de clean architecture
-sem exigir interfaces formais (Protocol/ABC) — a separação é por convenção de módulo,
-não por contrato de tipos. Rationale: mantém os nodes testáveis e substituíveis sem
-impor a cerimônia de uma arquitetura hexagonal completa, compatível com o Princípio I.
+### II. Nodes Isolated from Infrastructure
+Graph nodes (LangGraph) NEVER access the database, LLM, or files directly. All
+infrastructure access goes through dedicated modules (e.g. `db/repository.py`, an
+abstracted LLM client). This preserves clean architecture's dependency direction
+without requiring formal interfaces (Protocol/ABC) — the separation is by module
+convention, not by type contract. Rationale: keeps nodes testable and replaceable
+without imposing the ceremony of a full hexagonal architecture, consistent with
+Principle I.
 
-### III. LLM Trocável por Abstração
-O LLM é acessado via abstração trocável (`init_chat_model` ou equivalente). Hoje é
-Ollama local com Qwen2.5; a implementação DEVE permitir troca para Claude, OpenAI ou
-outro provedor sem alterar código de nodes. Rationale: o objetivo de aprendizado inclui
-avaliar categorização entre modelos locais e externos.
+### III. Swappable LLM via Abstraction
+The LLM is accessed via a swappable abstraction (`init_chat_model` or equivalent).
+Today it's local Ollama with Qwen2.5, but the implementation MUST allow switching to
+Claude, OpenAI, or another provider without changing node code. Rationale: the
+learning goal includes evaluating categorization across local and external models.
 
-### IV. Persistência Portável
-SQLite é o banco da Fase 1, mas todo acesso a dados DEVE permanecer portável para
-Postgres/Supabase: usar SQL padrão (evitar extensões específicas do SQLite) e um
-checkpointer com interface equivalente em ambos os backends.
+### IV. Portable Persistence
+SQLite is the Phase 1 database, but all data access MUST remain portable to
+Postgres/Supabase: use standard SQL (avoid SQLite-specific extensions) and a
+checkpointer with an equivalent interface on both backends.
 
-### V. Revisão Humana Obrigatória para Decisões Sensíveis
-Toda decisão financeira sensível — categorização de confiança baixa ou média, detecção
-de transferência entre contas próprias — DEVE passar por revisão humana via
-`interrupt()`. Isso é obrigatório mesmo quando o resultado parece óbvio; a automação
-completa dessas decisões é NÃO permitida nesta fase. Rationale: erros de categorização
-financeira têm custo de correção maior que o custo de uma confirmação humana.
+### V. Mandatory Human Review for Sensitive Decisions
+Every sensitive financial decision — low- or medium-confidence categorization,
+detection of transfers between the user's own accounts — MUST go through human review
+via `interrupt()`. This is mandatory even when the outcome seems obvious; fully
+automating these decisions is NOT allowed at this stage. Rationale: the cost of fixing
+a financial categorization error is higher than the cost of a human confirmation.
 
-### VI. Confiança Categórica
-A confiança de categorização é representada de forma categórica (`high`/`medium`/`low`),
-nunca numérica. Rationale: LLMs não produzem probabilidades calibradas de forma
-confiável; expor um número (ex. "87%") passaria uma precisão que não existe.
+### VI. Categorical Confidence
+Categorization confidence is represented categorically (`high`/`medium`/`low`), never
+numerically. Rationale: LLMs don't reliably produce calibrated probabilities; exposing
+a number (e.g. "87%") would imply a precision that doesn't exist.
 
-### VII. Deduplicação Determinística
-Transações usam hash de deduplicação (data + descrição + valor + conta) para evitar
-duplicação em reimportações. A deduplicação é determinística e não depende de
-julgamento do LLM.
+### VII. Deterministic Deduplication
+Transactions use a deduplication hash (date + description + amount + account) to
+prevent duplication on reimport. Deduplication is deterministic and doesn't depend on
+LLM judgment.
 
-## Proteção de Dados Sensíveis
+## Sensitive Data Protection
 
-Nenhum dado financeiro real (extratos, categorias ou metas pessoais, banco `.db`) entra
-no repositório em nenhuma hipótese. O `.gitignore` DEVE estar configurado cobrindo esses
-artefatos antes do primeiro commit do projeto. Qualquer script, teste ou fixture que
-precise de dados de exemplo DEVE usar dados sintéticos.
+No real financial data (statements, personal categories or goals, the `.db` database)
+enters the repository under any circumstances. `.gitignore` MUST be configured to cover
+these artifacts before the project's first commit. Any script, test, or fixture that
+needs sample data MUST use synthetic data.
 
-## Padrões de Teste
+## Testing Standards
 
-- Parsers têm testes unitários determinísticos com fixtures pequenas por banco.
-- Existe um golden set de transações com categoria correta conhecida, usado para medir
-  acurácia de categorização — crítico ao trocar de LLM local para um provedor externo.
-- O grafo é testável com LLM mockado, sem depender do Ollama rodando.
+- Parsers have deterministic unit tests with small fixtures per bank.
+- A golden set of transactions with known-correct categories exists, used to measure
+  categorization accuracy — critical when switching from a local LLM to an external
+  provider.
+- The graph is testable with a mocked LLM, without depending on Ollama running.
 
-## Fora de Escopo (Fase Atual)
+## Out of Scope (Current Phase)
 
-Os itens abaixo são explicitamente NÃO perseguidos nesta fase do projeto: integração
-bancária automática (open banking), multiusuário/autenticação, app mobile, alertas em
-tempo real. Propostas que introduzam esses itens DEVEM ser tratadas como uma nova fase,
-não como extensão incremental do escopo atual.
+The items below are explicitly NOT pursued in this phase of the project: automatic
+bank integration (open banking), multi-user/authentication, mobile app, real-time
+alerts. Proposals that introduce these items MUST be treated as a new phase, not as an
+incremental extension of the current scope.
 
 ## Governance
 
-Esta constituição tem precedência sobre qualquer outra prática ou convenção adotada no
-projeto. Alterações exigem:
+This constitution takes precedence over any other practice or convention adopted in
+the project. Changes require:
 
-1. Registro da mudança nesta constituição, com atualização do Sync Impact Report no
-   topo do arquivo.
-2. Versionamento semântico:
-   - MAJOR: remoção ou redefinição incompatível de princípios existentes.
-   - MINOR: adição de novo princípio ou expansão material de uma seção.
-   - PATCH: esclarecimentos, correções de texto, refinamentos não semânticos.
-3. Atualização da data de "Last Amended" para a data da mudança.
+1. Recording the change in this constitution, updating the Sync Impact Report at the
+   top of the file.
+2. Semantic versioning:
+   - MAJOR: removal or incompatible redefinition of existing principles.
+   - MINOR: addition of a new principle or material expansion of a section.
+   - PATCH: clarifications, wording fixes, non-semantic refinements.
+3. Updating the "Last Amended" date to the date of the change.
 
-Specs, planos e tasks gerados pelos comandos `/speckit-*` DEVEM estar em conformidade
-com os princípios aqui definidos; qualquer desvio precisa de justificativa explícita no
-artefato correspondente.
+Specs, plans, and tasks generated by the `/speckit-*` commands MUST comply with the
+principles defined here; any deviation needs explicit justification in the
+corresponding artifact.
 
 **Version**: 1.0.0 | **Ratified**: 2026-08-23 | **Last Amended**: 2026-08-23

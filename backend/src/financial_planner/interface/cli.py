@@ -1,6 +1,9 @@
-"""Driver mínimo do loop interrupt()/resume. Não conhece taxonomia nem regras de
-negócio — só formata o payload de cada interrupt() no terminal e devolve uma linha de
-texto (ver contracts/review-node.md, specs/003-human-review).
+"""Minimal driver for the interrupt()/resume loop. Knows nothing about taxonomy or
+business rules — it only formats each interrupt()'s payload for the terminal and
+returns a line of text (see contracts/review-node.md, specs/003-human-review).
+
+All printed/prompted text stays in Portuguese: this is the app's actual runtime
+language, since the user runs it in Portuguese (see contracts/review-node.md).
 """
 
 import sys

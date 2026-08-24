@@ -19,7 +19,7 @@ def _category_row(db_path: str, dedup_hash: str) -> tuple:
     return row
 
 
-# --- User Story 1: categorizar merchants já conhecidos ---------------------------------
+# --- User Story 1: categorize already-known merchants -----------------------------------
 
 
 def test_categorize_known_merchant(tmp_path):
@@ -48,7 +48,7 @@ def test_empty_merchant_memory_never_high(tmp_path):
     assert _category_row(db_path, "hash-2")[2] != "high"
 
 
-# --- User Story 2: categorizar via LLM, com fallback ------------------------------------
+# --- User Story 2: categorize via LLM, with fallback -------------------------------------
 
 
 def test_categorize_new_merchant_via_llm(tmp_path):
@@ -80,7 +80,7 @@ def test_llm_response_outside_taxonomy_falls_back(tmp_path):
     assert _category_row(db_path, "hash-4") == ("Outros", None, "low")
 
 
-# --- User Story 3: sinalizar candidatos a transferência ---------------------------------
+# --- User Story 3: flag transfer candidates -----------------------------------------------
 
 
 def test_transfer_pair_detected(tmp_path):
@@ -116,7 +116,7 @@ def test_transfer_pair_detected(tmp_path):
 
     assert _category_row(db_path, "hash-out") == ("Transferência interna", None, "medium")
     assert _category_row(db_path, "hash-in") == ("Transferência interna", None, "medium")
-    # Nenhuma das duas foi removida do total — ambas continuam na tabela transactions.
+    # Neither was removed from the total — both stay in the transactions table.
     conn = repository.connect(db_path)
     count = conn.execute("SELECT COUNT(*) FROM transactions").fetchone()[0]
     conn.close()

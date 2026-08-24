@@ -1,8 +1,8 @@
-"""Schema tipado de domínio compartilhado pelos nodes do grafo.
+"""Typed domain schema shared by the graph's nodes.
 
-Esta feature (detect_and_parse) só preenche o subconjunto de campos de Transacao
-documentado em specs/001-ingest-extratos/data-model.md. category, subcategory,
-confidence e installment_id ficam None/NULL até features futuras (categorize, etc.).
+This feature (detect_and_parse) only fills in the subset of Transaction fields
+documented in specs/001-ingest-extratos/data-model.md. category, subcategory,
+confidence, and installment_id stay None/NULL until later features (categorize, etc.).
 """
 
 from dataclasses import dataclass, field
@@ -52,4 +52,4 @@ class ImportResult:
 
 
 class UnrecognizedBankError(Exception):
-    """Levantado quando um arquivo de extrato não corresponde a nenhum banco suportado."""
+    """Raised when a statement file doesn't match any supported bank."""

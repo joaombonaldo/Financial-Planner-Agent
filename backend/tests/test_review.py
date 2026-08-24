@@ -17,7 +17,7 @@ def _category_row(db_path: str, dedup_hash: str) -> tuple:
     return row
 
 
-# --- User Story 1: revisar e corrigir confiança média/baixa ----------------------------
+# --- User Story 1: review and correct medium/low confidence -----------------------------
 
 
 def test_review_accept_suggestion(tmp_path):
@@ -84,7 +84,7 @@ def test_review_rejects_invalid_category_and_reasks(tmp_path):
     assert _category_row(db_path, "hash-4") == ("Vestuário", "Roupas", "high")
 
 
-# --- User Story 2: confirmar ou rejeitar candidatos a transferência ---------------------
+# --- User Story 2: confirm or reject transfer candidates ---------------------------------
 
 
 def test_review_confirm_transfer(tmp_path):
@@ -118,7 +118,7 @@ def test_review_reject_transfer_with_new_category(tmp_path):
     assert _category_row(db_path, "hash-6") == ("Alimentação", "Restaurante/Delivery", "high")
 
 
-# --- User Story 3: retomar sessão interrompida sem perder progresso ---------------------
+# --- User Story 3: resume an interrupted session without losing progress -----------------
 
 
 def _seed_three_pending(conn):
@@ -142,11 +142,11 @@ def test_review_partial_session_persists_immediately(tmp_path):
     first_hash = result["__interrupt__"][0].value["transaction"]["description_raw"]
     assert first_hash == "Item A"
 
-    # Decide o primeiro item e "para" — não continua avançando o grafo.
+    # Decide the first item and "stop" — don't keep advancing the graph.
     graph.invoke(Command(resume="Transporte|Uber/99"), config=config)
 
     assert _category_row(db_path, "hash-a") == ("Transporte", "Uber/99", "high")
-    # Os outros dois ainda não foram tocados.
+    # The other two haven't been touched yet.
     assert _category_row(db_path, "hash-b")[2] != "high"
     assert _category_row(db_path, "hash-c")[2] != "high"
 
@@ -161,10 +161,10 @@ def test_review_resume_does_not_reask_decided_items(tmp_path):
     config = {"configurable": {"thread_id": "thread-resume"}}
 
     graph.invoke({"source_files": [], "month_ref": MONTH_REF, "db_path": db_path}, config=config)
-    # Decide o primeiro item (Item A).
+    # Decide the first item (Item A).
     result = graph.invoke(Command(resume="Transporte|Uber/99"), config=config)
 
-    # "Retomar" com o mesmo thread_id: o próximo interrupt já deve ser o segundo item.
+    # "Resume" with the same thread_id: the next interrupt should already be the second item.
     next_payload = result["__interrupt__"][0].value
     assert next_payload["transaction"]["description_raw"] == "Item B"
     assert _category_row(db_path, "hash-a") == ("Transporte", "Uber/99", "high")

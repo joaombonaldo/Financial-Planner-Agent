@@ -1,121 +1,121 @@
-# BRD — Financial Planner com Agentes de IA (LangGraph)
+# BRD — Financial Planner with AI Agents (LangGraph)
 
-**Status:** Rascunho v1
-**Última atualização:** 2026-08-22
-**Autor:** João Miguel
-
----
-
-## 1. Visão geral do projeto
-
-Projeto pessoal de estudo com o objetivo de aprender arquitetura de agentes de IA na prática, construindo um planejador financeiro que:
-
-- Importa extratos bancários (CSV/Excel) de 2 bancos
-- Categoriza transações automaticamente usando um LLM, com revisão humana (human-in-the-loop)
-- Rastreia parcelamentos de cartão de crédito, transferências entre contas próprias, receitas e despesas
-- Compara gastos contra metas de orçamento definidas pelo usuário
-- Gera insights mensais sobre a situação financeira
-- Mantém histórico entre execuções mensais
-
-O projeto é usado por um único usuário (o autor), com cadência de execução mensal (podendo chegar a semanal).
+**Status:** Draft v1
+**Last updated:** 2026-08-22
+**Author:** João Miguel
 
 ---
 
-## 2. Objetivos de aprendizado
+## 1. Project overview
 
-- Praticar LangGraph: `StateGraph`, `checkpointer`, `interrupt()`/human-in-the-loop, condicionais
-- Praticar arquitetura desacoplada (separação domínio / infraestrutura / interface)
-- Praticar React na Fase 2 (dashboard + revisão via UI)
-- Aprender Supabase (Postgres hospedado) na Fase 2
+Personal study project aimed at learning AI agent architecture hands-on, by building a financial planner that:
+
+- Imports bank statements (CSV/Excel) from 2 banks
+- Automatically categorizes transactions using an LLM, with human review (human-in-the-loop)
+- Tracks credit card installments, transfers between the user's own accounts, income and expenses
+- Compares spending against budget goals defined by the user
+- Generates monthly insights about the financial situation
+- Keeps history across monthly runs
+
+The project is used by a single user (the author), run on a monthly cadence (possibly weekly).
 
 ---
 
-## 3. Stack tecnológica
+## 2. Learning goals
 
-| Camada | Escolha | Observação |
+- Practice LangGraph: `StateGraph`, `checkpointer`, `interrupt()`/human-in-the-loop, conditionals
+- Practice decoupled architecture (domain / infrastructure / interface separation)
+- Practice React in Phase 2 (dashboard + review via UI)
+- Learn Supabase (hosted Postgres) in Phase 2
+
+---
+
+## 3. Tech stack
+
+| Layer | Choice | Notes |
 |---|---|---|
-| Orquestração de agentes | LangGraph | Grafo único com nodes especializados (não supervisor multi-agente — desnecessário para este fluxo) |
-| LLM | Ollama local, modelo **Qwen2.5** | Troca futura para Claude/OpenAI via `init_chat_model()`, sem alterar nodes |
-| Parsing de dados | pandas + openpyxl | Padrão de mercado para CSV/Excel |
-| Persistência (fase 1) | SQLite | Checkpointer do LangGraph + memória de merchants + histórico, tudo no mesmo banco |
-| Persistência (fase 2) | Supabase (Postgres) | Free tier ($0/mês); migração via `langgraph-checkpoint-postgres`, mesma interface do SQLite |
-| Observability | LangSmith | Tracing automático via variáveis de ambiente, sem mudança de código |
-| Gerenciador de dependências | `uv` | |
-| Interface (fase 1) | CLI | Foco em validar o fluxo do agente antes de investir em UI |
-| Interface (fase 2) | React + FastAPI | FastAPI expõe `core/` via API assíncrona (necessário por causa do `interrupt()`) |
-| Repositório | Monorepo (`backend/` + `frontend/`) | Projeto pessoal, um único dev — repos separados não trazem benefício aqui |
+| Agent orchestration | LangGraph | Single graph with specialized nodes (not a multi-agent supervisor — unnecessary for this flow) |
+| LLM | Local Ollama, **Qwen2.5** model | Future swap to Claude/OpenAI via `init_chat_model()`, without changing nodes |
+| Data parsing | pandas + openpyxl | Market standard for CSV/Excel |
+| Persistence (phase 1) | SQLite | LangGraph checkpointer + merchant memory + history, all in the same database |
+| Persistence (phase 2) | Supabase (Postgres) | Free tier ($0/month); migration via `langgraph-checkpoint-postgres`, same interface as SQLite |
+| Observability | LangSmith | Automatic tracing via environment variables, no code changes |
+| Dependency manager | `uv` | |
+| Interface (phase 1) | CLI | Focus on validating the agent flow before investing in UI |
+| Interface (phase 2) | React + FastAPI | FastAPI exposes `core/` via an async API (needed because of `interrupt()`) |
+| Repository | Monorepo (`backend/` + `frontend/`) | Personal project, single dev — separate repos bring no benefit here |
 
 ---
 
-## 4. Arquitetura do grafo (LangGraph)
+## 4. Graph architecture (LangGraph)
 
-Fluxo sequencial de 7 nodes, com um ponto de interrupção humana:
+Sequential flow of 7 nodes, with one human interruption point:
 
 ```
 detect_and_parse → categorize → human_review (interrupt) → update_memory
     → budget_check → generate_insights → generate_report
 ```
 
-| Node | Responsabilidade | Usa LLM? |
+| Node | Responsibility | Uses LLM? |
 |---|---|---|
-| `detect_and_parse` | Identifica o banco de origem e normaliza os dados via adapter pattern (1 parser por banco) | Não |
-| `categorize` | Categoriza transações; usa memória de merchants já confirmados, só chama o LLM para casos novos/ambíguos | Sim |
-| `human_review` | Interrompe o grafo (`interrupt()`) para revisão/correção de itens de confiança média/baixa | Não |
-| `update_memory` | Persiste correções no mapeamento merchant → categoria | Não |
-| `budget_check` | Compara gastos por categoria contra metas definidas | Não |
-| `generate_insights` | Gera observações sobre tendências e comparação com meses anteriores | Sim (opcional) |
-| `generate_report` | Monta o relatório final do mês | Não |
+| `detect_and_parse` | Identifies the source bank and normalizes the data via an adapter pattern (1 parser per bank) | No |
+| `categorize` | Categorizes transactions; uses memory of already-confirmed merchants, only calls the LLM for new/ambiguous cases | Yes |
+| `human_review` | Interrupts the graph (`interrupt()`) for review/correction of medium/low confidence items | No |
+| `update_memory` | Persists corrections into the merchant → category mapping | No |
+| `budget_check` | Compares spending per category against defined goals | No |
+| `generate_insights` | Generates observations about trends and comparisons with previous months | Yes (optional) |
+| `generate_report` | Assembles the month's final report | No |
 
-**Estratégia de threads:** cada mês processado é um `thread_id` próprio no checkpointer (ex: `2026-08`), permitindo reprocessar/auditar um mês isoladamente. Histórico entre meses vive na camada de dados (SQLite/Supabase), não no state do grafo.
-
----
-
-## 5. Regras de negócio
-
-### 5.1 Categorização
-- Taxonomia com categorias e subcategorias (ver Anexo A), extensível conforme uso real
-- Confiança representada de forma categórica (`high` / `medium` / `low`), não numérica — alinhado ao que LLMs conseguem estimar de forma confiável
-- `high`: merchant já conhecido → passa direto
-- `medium`/`low`: vai para `human_review`
-
-### 5.2 Transferências entre contas próprias
-- Transações com padrão de transferência (`TED`, `PIX`, `DOC`) e valor espelhado em outra conta (janela de ±2 dias) são **sugeridas** como "Transferência interna" pelo `categorize`, mas confirmadas via `human_review` — não são excluídas automaticamente sem supervisão
-- Transferências confirmadas são excluídas do total de gastos/receitas
-
-### 5.3 Parcelamentos (cartão de crédito)
-- Cada parcela aparece no gasto mensal normal da categoria correspondente
-- Existe uma tabela própria (`installments`) com valor total, número de parcelas, parcelas pagas/restantes — consultável como visão separada
-
-### 5.4 Receitas e despesas
-- O sistema rastreia movimentação completa (entradas e saídas), não apenas gastos
-- Campo `type` da transação: `income` / `expense` / `transfer` (extensível para suportar investimentos na Fase 3)
-
-### 5.5 Metas de orçamento
-- Fase 1: arquivo `config/budget.local.yaml` (gitignored), lido via função `get_budget()`
-- Fase 2: mesma função passa a ler do Supabase, sem alterar o restante do sistema
+**Thread strategy:** each processed month gets its own `thread_id` in the checkpointer (e.g. `2026-08`), allowing a month to be reprocessed/audited in isolation. History across months lives in the data layer (SQLite/Supabase), not in the graph state.
 
 ---
 
-## 6. Modelo de dados
+## 5. Business rules
 
-### 6.1 Transação (schema normalizado)
+### 5.1 Categorization
+- Taxonomy with categories and subcategories (see Appendix A), extensible as real usage grows
+- Confidence represented categorically (`high` / `medium` / `low`), not numerically — aligned with what LLMs can reliably estimate
+- `high`: already-known merchant → passes straight through
+- `medium`/`low`: goes to `human_review`
+
+### 5.2 Transfers between the user's own accounts
+- Transactions with a transfer pattern (`TED`, `PIX`, `DOC`) and a mirrored amount in another account (±2-day window) are **suggested** as "Transferência interna" (internal transfer) by `categorize`, but confirmed via `human_review` — never excluded automatically without supervision
+- Confirmed transfers are excluded from the total of expenses/income
+
+### 5.3 Installments (credit card)
+- Each installment shows up in the normal monthly spend of its corresponding category
+- There's a dedicated table (`installments`) with total amount, number of installments, paid/remaining installments — queryable as a separate view
+
+### 5.4 Income and expenses
+- The system tracks full movement (inflows and outflows), not just spending
+- Transaction `type` field: `income` / `expense` / `transfer` (extensible to support investments in Phase 3)
+
+### 5.5 Budget goals
+- Phase 1: `config/budget.local.yaml` file (gitignored), read via a `get_budget()` function
+- Phase 2: the same function starts reading from Supabase, without changing the rest of the system
+
+---
+
+## 6. Data model
+
+### 6.1 Transaction (normalized schema)
 
 ```
-id                  # PK auto-incremento
-dedup_hash          # hash(date + description_raw + amount + account) — evita duplicação em reimportação
+id                  # PK auto-increment
+dedup_hash          # hash(date + description_raw + amount + account) — prevents duplication on reimport
 date
-description_raw     # como veio do banco
-account             # banco/conta de origem
+description_raw     # as it came from the bank
+account             # source bank/account
 type                # income | expense | transfer
-amount              # sempre positivo; type indica a direção
+amount              # always positive; type indicates direction
 category
 subcategory
 confidence          # high | medium | low
 installment_id      # FK, nullable
-month_ref           # ex: "2026-08"
+month_ref           # e.g. "2026-08"
 ```
 
-### 6.2 Parcelamentos
+### 6.2 Installments
 
 ```
 installments
@@ -128,42 +128,42 @@ installments
 └── account
 ```
 
-### 6.3 Formato de origem por banco
+### 6.3 Source format per bank
 
-**Status: confirmado a partir de exports reais** (período 24/07 a 22/08/2026, 1 mês, ambos os bancos).
+**Status: confirmed from real exports** (period 24/07 to 22/08/2026, 1 month, both banks).
 
-| Aspecto | Bradesco | Inter |
+| Aspect | Bradesco | Inter |
 |---|---|---|
-| Encoding | UTF-8 **com BOM** (`EF BB BF`) — exige `utf-8-sig` na leitura | UTF-8 sem BOM |
-| Separador | `;` | `;` |
-| Formato numérico | Brasileiro (`1.645,20` = mil seiscentos e quarenta e cinco vírgula vinte) | Brasileiro, igual |
-| Formato de data | `DD/MM/AAAA` | `DD/MM/AAAA` |
-| Coluna de valor | **Duas colunas separadas**: `Crédito (R$)` e `Débito (R$)` (uma populada, outra em branco) | **Uma coluna única** `Valor`, com sinal (negativo = débito) |
-| Descrição da transação | `Histórico` (ex: "PIX ENVIADO", "PIX RECEBIDO") — **nunca inclui nome do favorecido/pagador** | `Histórico` (tipo genérico, ex: "Compra no débito") + `Descrição` (nome do estabelecimento/pessoa) — **`Descrição` vem vazia em algumas linhas**, precisa fallback pro `Histórico` |
-| Identificador nativo | Coluna `Docto.` (número do documento) | Não existe — só saldo corrente |
-| Saldo corrente | Sim, coluna `Saldo (R$)` | Sim, coluna `Saldo` |
-| Linhas de metadado no arquivo | Linha 1 (agência/conta), depois header | 4 linhas (título, conta, período, saldo) + linha em branco, depois header |
-| Estrutura de seções | **Duas seções no mesmo arquivo**: extrato principal + bloco "Últimos Lancamentos" (header repetido no meio do arquivo) + linha de rodapé "Total" | Seção única |
+| Encoding | UTF-8 **with BOM** (`EF BB BF`) — requires `utf-8-sig` when reading | UTF-8 without BOM |
+| Separator | `;` | `;` |
+| Number format | Brazilian (`1.645,20` = one thousand six hundred forty-five point twenty) | Brazilian, same |
+| Date format | `DD/MM/YYYY` | `DD/MM/YYYY` |
+| Amount column | **Two separate columns**: `Crédito (R$)` and `Débito (R$)` (one populated, the other blank) | **Single column** `Valor`, signed (negative = debit) |
+| Transaction description | `Histórico` (e.g. "PIX ENVIADO", "PIX RECEBIDO") — **never includes the counterparty's name** | `Histórico` (generic type, e.g. "Compra no débito") + `Descrição` (merchant/person name) — **`Descrição` comes blank on some rows**, needs a fallback to `Histórico` |
+| Native identifier | `Docto.` column (document number) | Doesn't exist — only running balance |
+| Running balance | Yes, `Saldo (R$)` column | Yes, `Saldo` column |
+| Metadata lines in the file | Line 1 (branch/account), then header | 4 lines (title, account, period, balance) + blank line, then header |
+| Section structure | **Two sections in the same file**: main statement + "Últimos Lancamentos" block (header repeated mid-file) + "Total" footer line | Single section |
 
-**Estratégia de parsing adotada (validada com os arquivos reais):** em vez de `skiprows` fixo, cada linha é testada contra um regex de data (`^\d{2}/\d{2}/\d{4};`) — só linhas que batem viram transação. Isso resolve de forma robusta o caso do Bradesco (metadado, header duplicado no meio do arquivo, linha de total no rodapé, linhas em branco) sem precisar mapear a estrutura exata linha a linha. Testado no arquivo real: 54 linhas totais → 42 linhas de transação válidas.
+**Parsing strategy adopted (validated against the real files):** instead of a fixed `skiprows`, every line is tested against a date regex (`^\d{2}/\d{2}/\d{4};`) — only matching lines become a transaction. This robustly handles the Bradesco case (metadata, header duplicated mid-file, footer total line, blank lines) without needing to map the exact line-by-line structure. Tested on the real file: 54 total lines → 42 valid transaction lines.
 
-**Achados que impactam decisões já tomadas:**
-- **Detecção de transferência interna (seção 5.2) fica mais fraca do lado Bradesco**: como o `Histórico` do Bradesco nunca cita o nome do favorecido/pagador (só "PIX ENVIADO"/"PIX RECEBIDO" genérico), o matching de transferência entre as duas contas próprias vai depender quase exclusivamente do **valor espelhado + janela de data**, não de texto — o que já era a regra desenhada, mas agora confirmamos que não há sinal textual adicional do lado Bradesco pra reforçar o match. Reforça a decisão de manter isso sempre em `human_review`, nunca automático.
-- **`dedup_hash` (seção 6.1) segue necessário mesmo sem duplicata exata encontrada nesta amostra** — o Bradesco tem duas seções (`extrato principal` + `Últimos Lancamentos`) com potencial de sobreposição em reexportações futuras (ex: exportar de novo incluindo dias já processados).
-- **Coluna `Saldo` de ambos os bancos** pode servir como checagem de sanidade do parser em teste automatizado: saldo da linha anterior ± valor da linha atual deve bater com o saldo da linha seguinte.
+**Findings that impact decisions already made:**
+- **Internal transfer detection (section 5.2) is weaker on the Bradesco side**: since Bradesco's `Histórico` never names the counterparty (just generic "PIX ENVIADO"/"PIX RECEBIDO"), matching a transfer between the two own accounts will depend almost entirely on **mirrored amount + date window**, not text — which was already the designed rule, but we've now confirmed there's no extra textual signal on the Bradesco side to reinforce the match. This reinforces the decision to always keep this in `human_review`, never automatic.
+- **`dedup_hash` (section 6.1) remains necessary even though no exact duplicate was found in this sample** — Bradesco has two sections (`main statement` + `Últimos Lancamentos`) with potential overlap in future re-exports (e.g. re-exporting to include already-processed days).
+- **The `Saldo` (balance) column on both banks** can serve as a parser sanity check in automated testing: the previous row's balance ± the current row's amount should match the following row's balance.
 
 ---
 
-## 7. Estrutura do repositório
+## 7. Repository structure
 
 ```
 financial-planner-agent/
 ├── backend/
 │   ├── pyproject.toml
 │   ├── src/financial_planner/
-│   │   ├── graph.py              # monta e compila o StateGraph
-│   │   ├── state.py              # schema tipado (domínio)
-│   │   ├── nodes/                # casos de uso — orquestram, não implementam I/O direto
+│   │   ├── graph.py              # builds and compiles the StateGraph
+│   │   ├── state.py              # typed schema (domain)
+│   │   ├── nodes/                # use cases — orchestrate, don't implement direct I/O
 │   │   │   ├── ingest.py
 │   │   │   ├── categorize.py
 │   │   │   ├── review.py
@@ -171,82 +171,84 @@ financial-planner-agent/
 │   │   │   ├── budget.py
 │   │   │   ├── insights.py
 │   │   │   └── report.py
-│   │   ├── parsers/               # adapters — 1 arquivo por banco
-│   │   ├── db/                    # adapter de persistência
+│   │   ├── parsers/               # adapters — 1 file per bank
+│   │   ├── db/                    # persistence adapter
 │   │   │   ├── schema.sql
 │   │   │   └── repository.py
 │   │   ├── config/
 │   │   │   ├── categories.yaml
 │   │   │   └── budget.example.yaml
 │   │   └── interface/
-│   │       ├── cli.py             # fase 1
-│   │       └── api.py             # fase 2 — FastAPI
+│   │       ├── cli.py             # phase 1
+│   │       └── api.py             # phase 2 — FastAPI
 │   └── tests/
-│       ├── fixtures/              # CSVs fake por banco
-│       ├── golden_set.csv         # transações com categoria correta conhecida
+│       ├── fixtures/              # fake CSVs per bank
+│       ├── golden_set.csv         # transactions with known-correct category
 │       ├── test_parsers.py
 │       └── test_graph.py
-├── frontend/                       # fase 2 — React
-├── extracts/                       # gitignored — exports reais
+├── frontend/                       # phase 2 — React
+├── extracts/                       # gitignored — real exports
 └── README.md
 ```
 
-**Princípio arquitetural:** nodes nunca acessam banco/LLM diretamente — sempre via `db/repository.py` ou cliente de LLM abstraído. Isso mantém a direção de dependência correta (lógica de negócio não depende de infraestrutura) sem precisar de interfaces formais (`Protocol`/ABC), que seriam over-engineering para este porte de projeto.
+**Architectural principle:** nodes never access the database/LLM directly — always via `db/repository.py` or an abstracted LLM client. This keeps the dependency direction correct (business logic doesn't depend on infrastructure) without needing formal interfaces (`Protocol`/ABC), which would be over-engineering for a project of this size.
 
-### Variáveis de ambiente (`.env`)
+### Environment variables (`.env`)
 `OLLAMA_MODEL`, `OLLAMA_BASE_URL`, `LANGCHAIN_TRACING_V2`, `LANGCHAIN_API_KEY`, `LANGCHAIN_PROJECT`, `SQLITE_DB_PATH`
 
 ---
 
-## 8. Estratégia de dados sensíveis
+## 8. Sensitive data strategy
 
-- Nenhum dado real (extratos, categorias personalizadas, metas, banco `.db`) entra no repositório
-- `.gitignore` cobre: `extracts/`, `*.db`, `config/budget.local.yaml`, `.env`
-- Repositório versiona apenas código reutilizável + `config/budget.example.yaml` com valores fictícios
-
----
-
-## 9. Estratégia de testes
-
-- **Testes unitários dos parsers** — fixtures pequenas (2-3 linhas) por banco, determinístico
-- **Golden set de categorização** — ~30-40 transações reais/anonimizadas com categoria correta conhecida, usado para medir acurácia (crítico ao trocar de LLM local para Claude/OpenAI)
-- **Grafo com LLM mockado** — valida conexão de nodes/edges sem depender do Ollama rodando
+- No real data (statements, personal categories, goals, the `.db` database) enters the repository
+- `.gitignore` covers: `extracts/`, `*.db`, `config/budget.local.yaml`, `.env`
+- The repository only versions reusable code + `config/budget.example.yaml` with fictitious values
 
 ---
 
-## 10. Escopo e roadmap
+## 9. Testing strategy
 
-### MVP (Fase 1)
-- CLI, 1 usuário, 2 bancos
-- Categorização + revisão humana + relatório simples
-- **Critério de aceite:**
-  1. Processar um mês real de 2 bancos sem erro
-  2. Revisão/correção funcional via CLI
-  3. Relatório final bate com soma conferida manualmente no extrato
-  4. Insights gerados refletem corretamente a situação financeira do mês, de forma que ajudem a entender para onde o dinheiro está indo
-
-### Fase 2
-- React + dashboards + histórico visual
-- Migração de persistência para Supabase
-- Backend FastAPI expondo `core/` via API assíncrona (padrão start-run → poll-status → resume-review)
-
-### Fase 3
-- Tracking de investimentos (além de planejamento financeiro)
+- **Parser unit tests** — small fixtures (2-3 lines) per bank, deterministic
+- **Categorization golden set** — ~30-40 real/anonymized transactions with known-correct category, used to measure accuracy (critical when switching from a local LLM to Claude/OpenAI)
+- **Graph with mocked LLM** — validates node/edge wiring without depending on Ollama running
 
 ---
 
-## 11. Fora de escopo (explícito)
+## 10. Scope and roadmap
 
-- Integração automática com banco (open banking/API) — export manual é premissa assumida do projeto inteiro
-- Multiusuário/autenticação no MVP (mesmo migrando para Supabase na Fase 2, uso permanece pessoal)
-- Aplicativo mobile
-- Alertas em tempo real (`budget_check` roda apenas quando o mês é processado, não monitora continuamente)
+### MVP (Phase 1)
+- CLI, 1 user, 2 banks
+- Categorization + human review + simple report
+- **Acceptance criteria:**
+  1. Process a real month from 2 banks without error
+  2. Review/correction works via CLI
+  3. Final report matches the sum manually checked against the statement
+  4. Generated insights correctly reflect the month's financial situation, in a way that helps understand where the money is going
+
+### Phase 2
+- React + dashboards + visual history
+- Persistence migration to Supabase
+- FastAPI backend exposing `core/` via an async API (start-run → poll-status → resume-review pattern)
+
+### Phase 3
+- Investment tracking (beyond financial planning)
 
 ---
 
-## Anexo A — Taxonomia inicial de categorias
+## 11. Out of scope (explicit)
 
-| Categoria | Subcategorias |
+- Automatic bank integration (open banking/API) — manual export is an assumption of the whole project
+- Multi-user/authentication in the MVP (even after migrating to Supabase in Phase 2, usage stays personal)
+- Mobile app
+- Real-time alerts (`budget_check` only runs when the month is processed, doesn't monitor continuously)
+
+---
+
+## Appendix A — Initial category taxonomy
+
+Category and subcategory names are kept in Portuguese here and throughout the codebase (`config/categories.yaml`), since this is the taxonomy the user actually applies to their own (Brazilian) finances.
+
+| Category | Subcategories |
 |---|---|
 | Moradia | Aluguel/Financiamento, Condomínio, Energia, Água, Internet, Gás |
 | Alimentação | Mercado, Restaurante/Delivery, Padaria/Café |
@@ -256,14 +258,14 @@ financial-planner-agent/
 | Lazer | Viagem, Eventos/Shows, Hobbies |
 | Educação | Cursos, Livros, Mensalidade |
 | Vestuário | Roupas, Calçados |
-| Cartão de crédito/Parcelamentos | (visão própria — ver seção 5.3) |
-| Transferência interna | (excluída do total de gastos — ver seção 5.2) |
+| Cartão de crédito/Parcelamentos | (own view — see section 5.3) |
+| Transferência interna | (excluded from spend total — see section 5.2) |
 | Receita | Salário, Freelance/Extra, Reembolso, Outras entradas |
-| Outros | Fallback para baixa confiança |
+| Outros | Fallback for low confidence |
 
-*Lista inicial — sujeita a expansão conforme merchants reais aparecerem na revisão mensal.*
+*Initial list — subject to expansion as real merchants show up during monthly review.*
 
-**Achados dos exports reais que sugerem ajuste na taxonomia:**
-- `Aplicação` (ex: "Cdb Pos Di Liq. Banco Inter") — aporte de investimento. Fica em `Outros` por enquanto (rastreio de investimento é Fase 3), mas já é sinal de que vale uma categoria `Investimento` dedicada quando a Fase 3 chegar.
-- `Deb Cartao + Protegido` (seguro de cartão) — sugerido como subcategoria nova `Seguros` dentro de `Assinaturas`.
-- `Pagamento efetuado` / "Pagamento Fatura" (pagamento da fatura do cartão de crédito, saindo da conta corrente) — mapeia para `Cartão de crédito/Parcelamentos` como o pagamento agregado do mês; compõe-se das parcelas individuais já categorizadas separadamente (ver seção 5.3). Vale confirmar esse relacionamento durante a `human_review` do primeiro mês real.
+**Findings from the real exports that suggest a taxonomy adjustment:**
+- `Aplicação` (e.g. "Cdb Pos Di Liq. Banco Inter") — an investment contribution. Stays under `Outros` for now (investment tracking is Phase 3), but is already a signal that a dedicated `Investimento` category will be worth adding once Phase 3 arrives.
+- `Deb Cartao + Protegido` (card insurance) — suggested as a new `Seguros` subcategory under `Assinaturas`.
+- `Pagamento efetuado` / "Pagamento Fatura" (credit card bill payment, leaving the checking account) — maps to `Cartão de crédito/Parcelamentos` as the month's aggregate payment; it's made up of the individual installments already categorized separately (see section 5.3). Worth confirming this relationship during `human_review` of the first real month.

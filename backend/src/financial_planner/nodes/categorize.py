@@ -1,8 +1,8 @@
-"""Node categorize: orquestra transferência + memória de merchants + LLM.
+"""Node categorize: orchestrates transfer detection + merchant memory + LLM.
 
-Ordem de avaliação (ver research.md): transferência -> memória -> LLM. Não acessa
-sqlite3 nem init_chat_model diretamente — delega para db/repository.py e
-categorization/*.py (Princípio II).
+Evaluation order (see research.md): transfer -> memory -> LLM. Doesn't access sqlite3
+nor init_chat_model directly — delegates to db/repository.py and categorization/*.py
+(Principle II).
 """
 
 from financial_planner.categorization import merchant_memory

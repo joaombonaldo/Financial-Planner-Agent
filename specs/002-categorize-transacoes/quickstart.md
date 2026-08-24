@@ -1,49 +1,49 @@
-# Quickstart: Validando a Categorização de Transações
+# Quickstart: Validating Transaction Categorization
 
-Guia de validação end-to-end desta feature. Sem código de implementação — apenas os passos para provar que o
-comportamento da spec funciona.
+End-to-end validation guide for this feature. No implementation code — just the steps to prove the spec's
+behavior works.
 
-## Pré-requisitos
+## Prerequisites
 
-- Ambiente `backend/` com dependências resolvidas (`uv sync`)
-- `config/categories.yaml` com a taxonomia inicial (Anexo A do BRD)
-- Fixtures sintéticas em `backend/tests/fixtures/categorization/` (transações + estado de `merchant_memory`)
-- LLM sempre mockado nos testes automatizados — nenhum cenário abaixo depende de Ollama rodando
+- `backend/` environment with dependencies resolved (`uv sync`)
+- `config/categories.yaml` with the initial taxonomy (BRD Appendix A)
+- Synthetic fixtures in `backend/tests/fixtures/categorization/` (transactions + `merchant_memory` state)
+- The LLM is always mocked in automated tests — no scenario below depends on Ollama running
 
-## Cenário 1 — Merchant já confirmado (User Story 1)
+## Scenario 1 — Already-confirmed merchant (User Story 1)
 
-1. Popular `merchant_memory` com um mapeamento conhecido (ex.: "uber" → Transporte/Uber-99).
-2. Rodar a categorização sobre uma transação cuja descrição normalizada bate com esse merchant.
-3. Verificar que a transação recebe a categoria/subcategoria mapeadas com `confidence = high`, e que o dublê do
-   LLM não foi chamado nenhuma vez.
+1. Populate `merchant_memory` with a known mapping (e.g. "uber" → Transporte/Uber-99).
+2. Run categorization on a transaction whose normalized description matches that merchant.
+3. Verify the transaction gets the mapped category/subcategory with `confidence = high`, and that the LLM double
+   was never called.
 
-**Resultado esperado**: categorização automática sem LLM para merchants já conhecidos.
+**Expected result**: automatic categorization without an LLM for already-known merchants.
 
-## Cenário 2 — Merchant novo, via LLM (User Story 2)
+## Scenario 2 — New merchant, via LLM (User Story 2)
 
-1. Rodar a categorização sobre uma transação cujo merchant não está em `merchant_memory`.
-2. Configurar o dublê do LLM para retornar uma categoria válida da taxonomia.
-3. Verificar que a transação recebe essa categoria com `confidence` `medium` ou `low` (nunca `high`).
-4. Repetir configurando o dublê para retornar uma categoria **fora** da taxonomia.
-5. Verificar que a transação recebe `category = "Outros"`, `confidence = low`.
+1. Run categorization on a transaction whose merchant isn't in `merchant_memory`.
+2. Configure the LLM double to return a valid taxonomy category.
+3. Verify the transaction gets that category with `confidence` `medium` or `low` (never `high`).
+4. Repeat, configuring the double to return a category **outside** the taxonomy.
+5. Verify the transaction gets `category = "Outros"`, `confidence = low`.
 
-**Resultado esperado**: toda transação termina com uma categoria válida, mesmo com resposta inesperada do LLM.
+**Expected result**: every transaction ends up with a valid category, even with an unexpected LLM response.
 
-## Cenário 3 — Candidato a transferência (User Story 3)
+## Scenario 3 — Transfer candidate (User Story 3)
 
-1. Criar duas transações sintéticas: uma de saída em uma conta ("PIX ENVIADO", valor X), uma de entrada em outra
-   conta ("PIX RECEBIDO", mesmo valor X), com datas a até 2 dias de distância.
-2. Rodar a categorização sobre o lote contendo as duas.
-3. Verificar que ambas recebem `category = "Transferência interna"`, `confidence = medium`, e que **nenhuma** foi
-   removida do total (a lista de transações retornada continua com as duas).
-4. Repetir com uma transação de padrão de transferência sem par espelhado dentro da janela.
-5. Verificar que essa transação segue o fluxo normal (Cenário 1 ou 2), sem virar "Transferência interna".
+1. Create two synthetic transactions: one outgoing in one account ("PIX ENVIADO", amount X), one incoming in
+   another account ("PIX RECEBIDO", same amount X), with dates up to 2 days apart.
+2. Run categorization on the batch containing both.
+3. Verify both get `category = "Transferência interna"`, `confidence = medium`, and that **neither** was removed
+   from the total (the returned transaction list still has both).
+4. Repeat with a transaction that has a transfer pattern but no mirrored pair within the window.
+5. Verify that transaction follows the normal flow (Scenario 1 or 2), without becoming "Transferência interna".
 
-**Resultado esperado**: transferências são sinalizadas, nunca aplicadas ou excluídas automaticamente.
+**Expected result**: transfers are flagged, never automatically applied or excluded.
 
-## Checklist de saída
+## Exit checklist
 
-- [ ] Cenário 1 confirma `confidence = high` sem chamada ao LLM
-- [ ] Cenário 2 confirma fallback "Outros"/`low` para resposta fora da taxonomia
-- [ ] Cenário 3 confirma sinalização de transferência sem exclusão do total
-- [ ] Nenhum teste depende de rede, Ollama real ou dado financeiro real
+- [ ] Scenario 1 confirms `confidence = high` with no LLM call
+- [ ] Scenario 2 confirms the "Outros"/`low` fallback for a response outside the taxonomy
+- [ ] Scenario 3 confirms transfer flagging without exclusion from the total
+- [ ] No test depends on the network, a real Ollama, or real financial data

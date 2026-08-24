@@ -1,8 +1,8 @@
-"""Adapter de parsing para exports do Inter.
+"""Parsing adapter for Inter exports.
 
-Formato (BRD 6.1/6.3): UTF-8 sem BOM, separador ';', colunas
-Data Lançamento;Histórico;Descrição;Valor;Saldo. Valor tem sinal (negativo = débito).
-`Descrição` pode vir vazia — nesse caso usa `Histórico` como fallback.
+Format (BRD 6.1/6.3): UTF-8 without BOM, ';' separator, columns
+Data Lançamento;Histórico;Descrição;Valor;Saldo. Valor is signed (negative = debit).
+`Descrição` can come blank — in that case, fall back to `Histórico`.
 """
 
 from pathlib import Path
@@ -20,15 +20,15 @@ def parse(path: str) -> list[Transaction]:
 
     transactions: list[Transaction] = []
     for line in tx_lines:
-        date_str, historico, descricao, valor, _saldo = line.split(";")[:5]
+        date_str, generic_description, merchant_description, amount_str, _balance = line.split(";")[:5]
 
         transaction_date = parse_brl_date(date_str)
-        description = descricao.strip() or historico.strip()
+        description = merchant_description.strip() or generic_description.strip()
 
-        raw_valor = valor.strip()
-        amount = parse_brl_amount(raw_valor)
+        raw_amount = amount_str.strip()
+        amount = parse_brl_amount(raw_amount)
         tx_type = (
-            TransactionType.EXPENSE if raw_valor.startswith("-") else TransactionType.INCOME
+            TransactionType.EXPENSE if raw_amount.startswith("-") else TransactionType.INCOME
         )
 
         dedup_hash = compute_dedup_hash(

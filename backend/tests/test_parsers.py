@@ -14,14 +14,15 @@ INTER_DESCENDING_ORDER = "tests/fixtures/inter/descending_order.csv"
 UNRECOGNIZED_BANK = "tests/fixtures/unrecognized_bank.csv"
 
 
-# --- User Story 1: importar extrato de um banco suportado ---------------------------
+# --- User Story 1: import a statement from a supported bank ---------------------------
 
 
 def test_parse_bradesco():
     transactions = bradesco.parse(BRADESCO_HAPPY_PATH)
 
-    # 4 linhas de transação no arquivo: 3 únicas + 1 repetida na seção
-    # "Últimos Lancamentos" (metadado, header duplicado e rodapé "Total" são ignorados).
+    # 4 transaction lines in the file: 3 unique + 1 repeated in the
+    # "Últimos Lancamentos" section (metadata, duplicated header, and "Total" footer
+    # are ignored).
     assert len(transactions) == 4
 
     assert transactions[0].description_raw == "PIX RECEBIDO"
@@ -32,7 +33,7 @@ def test_parse_bradesco():
     assert transactions[1].type == TransactionType.EXPENSE
     assert transactions[1].amount == 250.75
 
-    # A linha repetida na seção "Últimos Lancamentos" gera o mesmo dedup_hash.
+    # The line repeated in the "Últimos Lancamentos" section produces the same dedup_hash.
     assert transactions[3].dedup_hash == transactions[2].dedup_hash
 
 
@@ -44,7 +45,7 @@ def test_parse_inter():
     assert transactions[0].type == TransactionType.INCOME
     assert transactions[0].amount == 1500.00
 
-    # Descrição vazia na última linha usa Histórico como fallback.
+    # A blank Descrição on the last line falls back to Histórico.
     assert transactions[2].description_raw == "Compra no débito"
     assert transactions[2].type == TransactionType.EXPENSE
     assert transactions[2].amount == 300.00
@@ -55,7 +56,7 @@ def test_detect_bank():
     assert detect_bank(INTER_HAPPY_PATH) == Bank.INTER
 
 
-# --- User Story 2: reimportar sem duplicar --------------------------------------------
+# --- User Story 2: reimport without duplicating ----------------------------------------
 
 
 def test_reimport_skips_duplicates(tmp_path):
@@ -79,7 +80,7 @@ def test_dedup_within_same_file(tmp_path):
     assert result.transactions_skipped_duplicate == 1
 
 
-# --- User Story 3: aviso quando o parsing falha/não reconcilia ------------------------
+# --- User Story 3: warning when parsing fails/doesn't reconcile -----------------------
 
 
 def test_detect_unknown_bank():
@@ -101,11 +102,11 @@ def test_balance_reconciliation_mismatch():
     assert len(warnings) == 1
 
 
-# --- Regressão: casos encontrados na validação com extratos reais (T028) --------------
+# --- Regression: cases found while validating against real statements (T028) ----------
 
 
 def test_parse_bradesco_administrative_line_with_no_amount():
-    """Linha com Crédito e Débito ambos em branco (ex.: 'COD. LANC. 0') não deve crashar."""
+    """A line with Crédito and Débito both blank (e.g. 'COD. LANC. 0') must not crash."""
     transactions = bradesco.parse(BRADESCO_ADMIN_LINE)
 
     admin_tx = transactions[1]
@@ -114,7 +115,7 @@ def test_parse_bradesco_administrative_line_with_no_amount():
 
 
 def test_balance_reconciliation_preserves_negative_balance_sign():
-    """Saldo negativo (cheque especial) não pode ser normalizado para valor absoluto."""
+    """A negative balance (overdraft) must not be normalized to an absolute value."""
     reconciliation, warnings = check_balance_reconciliation(BRADESCO_ADMIN_LINE, Bank.BRADESCO)
 
     assert reconciliation == BalanceReconciliation.OK
@@ -122,8 +123,8 @@ def test_balance_reconciliation_preserves_negative_balance_sign():
 
 
 def test_balance_reconciliation_normalizes_descending_file_order():
-    """Arquivos com a linha mais recente primeiro (padrão observado no Inter) devem
-    reconciliar normalmente — a ordem cronológica é normalizada internamente."""
+    """Files with the most recent line first (the pattern observed on Inter) must
+    reconcile normally — chronological order is normalized internally."""
     reconciliation, warnings = check_balance_reconciliation(INTER_DESCENDING_ORDER, Bank.INTER)
 
     assert reconciliation == BalanceReconciliation.OK

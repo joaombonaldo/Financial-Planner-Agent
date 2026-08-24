@@ -1,4 +1,4 @@
-# Implementation Plan: Revisão Humana de Transações
+# Implementation Plan: Human Review of Transactions
 
 **Branch**: `003-human-review` | **Date**: 2026-08-23 | **Spec**: [spec.md](./spec.md)
 
@@ -8,53 +8,54 @@
 
 ## Summary
 
-Implementar o node `human_review` e, pela primeira vez, montar de fato um `StateGraph` do LangGraph (ligando
-`detect_and_parse` → `categorize` → `human_review`, com checkpointer SQLite). O node consulta as transações do mês
-ainda com `confidence != high`, e para cada uma chama `interrupt()` pedindo confirmação ou correção; a decisão é
-persistida imediatamente e a confiança vira `high`. Uma CLI mínima (`interface/cli.py`) dirige o loop de
-interrupção/retomada — genérica o suficiente para não conhecer regras de negócio, só exibir o que o node manda e
-devolver a resposta do usuário.
+Implement the `human_review` node and, for the first time, actually assemble a LangGraph `StateGraph` (wiring
+`detect_and_parse` → `categorize` → `human_review`, with a SQLite checkpointer). The node queries the month's
+transactions still with `confidence != high`, and for each one calls `interrupt()` asking for confirmation or
+correction; the decision is persisted immediately and confidence becomes `high`. A minimal CLI
+(`interface/cli.py`) drives the interrupt/resume loop — generic enough to know nothing about business rules, just
+displaying what the node sends and returning the user's response.
 
 ## Technical Context
 
 **Language/Version**: Python 3.12
 
-**Primary Dependencies**: `langgraph` (já presente — `StateGraph`, `interrupt`, `Command`),
-`langgraph-checkpoint-sqlite` (novo — `SqliteSaver`, checkpointer que permite retomar exatamente de onde parou)
+**Primary Dependencies**: `langgraph` (already present — `StateGraph`, `interrupt`, `Command`),
+`langgraph-checkpoint-sqlite` (new — `SqliteSaver`, a checkpointer that allows resuming exactly where it left off)
 
-**Storage**: SQLite — o checkpointer usa o mesmo arquivo de banco já usado por `transactions`/`merchant_memory`
-(BRD seção 3: "tudo no mesmo banco"), em tabelas próprias criadas automaticamente pelo `SqliteSaver`
+**Storage**: SQLite — the checkpointer uses the same database file already used by
+`transactions`/`merchant_memory` (BRD section 3: "all in the same database"), in its own tables automatically
+created by `SqliteSaver`
 
-**Testing**: pytest. Testes do node chamam a função de revisão diretamente, injetando respostas via um driver de
-teste que simula o loop de `interrupt()`/`Command(resume=...)`, sem terminal real — consistente com o padrão já
-usado para o LLM mockado.
+**Testing**: pytest. The node's tests call the review function directly, injecting responses via a test driver
+that simulates the `interrupt()`/`Command(resume=...)` loop, with no real terminal — consistent with the pattern
+already used for the mocked LLM.
 
-**Target Platform**: CLI local (macOS/Linux), execução mensal single-user
+**Target Platform**: local CLI (macOS/Linux), single-user monthly run
 
-**Project Type**: Projeto único dentro do monorepo (`backend/`)
+**Project Type**: single project inside the monorepo (`backend/`)
 
 **Performance Goals**: N/A
 
-**Constraints**: A revisão de um item MUST sobreviver a uma interrupção de processo (fechar o terminal) — depende
-inteiramente do checkpointer persistir o estado do grafo em disco antes de cada pausa, não em memória
+**Constraints**: Reviewing an item MUST survive a process interruption (closing the terminal) — this depends
+entirely on the checkpointer persisting the graph state to disk before each pause, not in memory
 
-**Scale/Scope**: dezenas de itens pendentes por mês, no pior caso (nenhum merchant conhecido ainda)
+**Scale/Scope**: dozens of pending items per month, in the worst case (no merchant known yet)
 
 ## Constitution Check
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-| Princípio | Aplicação nesta feature | Status |
+| Principle | Application in this feature | Status |
 |---|---|---|
-| I. Simplicidade Pragmática | Usa o padrão recomendado do próprio LangGraph para múltiplas interrupções em loop dentro de um node — nenhuma máquina de estados própria; CLI só exibe/coleta texto, sem framework de TUI | PASS |
-| II. Nodes Isolados de Infraestrutura | `nodes/review.py` só acessa banco via `db/repository.py`; a CLI (`interface/cli.py`) é a camada de interface, não um node — já prevista como componente separado na arquitetura do BRD (seção 7) | PASS |
-| III. LLM Trocável por Abstração | N/A — este node não usa LLM | N/A |
-| IV. Persistência Portável | Tabelas próprias (`transactions`) seguem SQL padrão; o checkpointer usa `langgraph-checkpoint-sqlite` hoje, com troca planejada para `langgraph-checkpoint-postgres` na Fase 2 (BRD seção 3) — mesma interface, migração já prevista | PASS |
-| V. Revisão Humana Obrigatória | Esta feature é a implementação direta do princípio | PASS |
-| VI. Confiança Categórica | Toda decisão humana resulta em `confidence = high` — nunca um valor numérico | PASS |
-| VII. Deduplicação Determinística | N/A — não recalcula dedup | N/A |
+| I. Pragmatic Simplicity | Uses LangGraph's own recommended pattern for multiple interruptions looped within a node — no custom state machine; the CLI only displays/collects text, no TUI framework | PASS |
+| II. Nodes Isolated from Infrastructure | `nodes/review.py` only accesses the database via `db/repository.py`; the CLI (`interface/cli.py`) is the interface layer, not a node — already planned as a separate component in the BRD's architecture (section 7) | PASS |
+| III. Swappable LLM via Abstraction | N/A — this node doesn't use an LLM | N/A |
+| IV. Portable Persistence | The feature's own tables (`transactions`) use standard SQL; the checkpointer uses `langgraph-checkpoint-sqlite` today, with a planned swap to `langgraph-checkpoint-postgres` in Phase 2 (BRD section 3) — same interface, migration already planned | PASS |
+| V. Mandatory Human Review | This feature is the direct implementation of the principle | PASS |
+| VI. Categorical Confidence | Every human decision results in `confidence = high` — never a numeric value | PASS |
+| VII. Deterministic Deduplication | N/A — doesn't recompute dedup | N/A |
 
-Nenhuma violação — Complexity Tracking não se aplica.
+No violations — Complexity Tracking doesn't apply.
 
 ## Project Structure
 
@@ -75,29 +76,29 @@ specs/003-human-review/
 ```text
 backend/
 ├── src/financial_planner/
-│   ├── graph.py                      # NOVO — monta e compila o StateGraph (checkpointer SqliteSaver)
-│   ├── graph_state.py                # NOVO — GraphState (TypedDict mínimo: source_files, month_ref, db_path)
+│   ├── graph.py                      # NEW — builds and compiles the StateGraph (SqliteSaver checkpointer)
+│   ├── graph_state.py                # NEW — GraphState (minimal TypedDict: source_files, month_ref, db_path)
 │   ├── nodes/
-│   │   ├── ingest.py                 # existente — adaptado para a assinatura de node do LangGraph
-│   │   ├── categorize.py             # existente — idem
-│   │   └── review.py                 # NOVO — node human_review
+│   │   ├── ingest.py                 # existing — adapted to LangGraph's node signature
+│   │   ├── categorize.py             # existing — same
+│   │   └── review.py                 # NEW — human_review node
 │   ├── db/
 │   │   └── repository.py             # + list_pending_review(month_ref)
 │   └── interface/
-│       └── cli.py                    # NOVO — driver mínimo do loop interrupt()/resume
+│       └── cli.py                    # NEW — minimal driver for the interrupt()/resume loop
 └── tests/
     ├── fixtures/
-    │   └── review/                   # transações sintéticas com confidence variada
+    │   └── review/                   # synthetic transactions with varying confidence
     └── test_review.py
 
-frontend/                             # não usado nesta fase
+frontend/                             # not used at this stage
 ```
 
-**Structure Decision**: Introduz `graph.py`/`graph_state.py` na raiz do pacote (montagem do grafo é transversal,
-não pertence a nenhum node específico) e `interface/cli.py` como a primeira peça da camada de interface prevista
-na estrutura do BRD (seção 7). `nodes/review.py` seguindo o mesmo padrão dos nodes anteriores — só orquestra,
-acessa banco via `db/repository.py`.
+**Structure Decision**: Introduces `graph.py`/`graph_state.py` at the package root (graph assembly is
+cross-cutting, doesn't belong to any specific node) and `interface/cli.py` as the first piece of the interface
+layer planned in the BRD's structure (section 7). `nodes/review.py` follows the same pattern as the previous
+nodes — only orchestrates, accesses the database via `db/repository.py`.
 
 ## Complexity Tracking
 
-*Não aplicável — nenhuma violação de constituição identificada.*
+*Not applicable — no constitution violations identified.*

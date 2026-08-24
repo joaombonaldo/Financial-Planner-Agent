@@ -3,170 +3,172 @@
 description: "Task list template for feature implementation"
 ---
 
-# Tasks: Ingestão de Extratos Bancários
+# Tasks: Bank Statement Ingestion
 
 **Input**: Design documents from `/specs/001-ingest-extratos/`
 
 **Prerequisites**: plan.md, spec.md, research.md, data-model.md, contracts/parser-adapter.md, quickstart.md
 
-**Tests**: Incluídas — a constituição do projeto exige testes unitários determinísticos por banco com fixtures
-pequenas ("Padrões de Teste"), então não são opcionais nesta feature.
+**Tests**: Included — the project's constitution requires deterministic unit tests per bank with small fixtures
+("Testing Standards"), so they're not optional in this feature.
 
-**Organization**: Tasks agrupadas por user story (US1/US2/US3, conforme spec.md) para permitir implementação e
-teste independentes de cada uma.
+**Organization**: Tasks are grouped by user story (US1/US2/US3, per spec.md) to allow independent implementation
+and testing of each one.
 
 ## Format: `[ID] [P?] [Story] Description`
 
-- **[P]**: pode rodar em paralelo (arquivos diferentes, sem dependência de tasks incompletas)
-- **[Story]**: a qual user story a task pertence (US1, US2, US3)
+- **[P]**: can run in parallel (different files, no dependency on incomplete tasks)
+- **[Story]**: which user story the task belongs to (US1, US2, US3)
 
 ## Path Conventions
 
-Projeto único em `backend/`, conforme `plan.md`. Todos os caminhos abaixo são relativos à raiz do repositório.
+Single project in `backend/`, per `plan.md`. All paths below are relative to the repository root.
 
 ---
 
 ## Phase 1: Setup (Shared Infrastructure)
 
-**Purpose**: preparar o projeto `backend/` para receber o código desta feature (ainda não existe nada além do
-esqueleto criado pelo `uv init`).
+**Purpose**: prepare the `backend/` project to receive this feature's code (nothing exists yet beyond the
+skeleton created by `uv init`).
 
-- [X] T001 Adicionar `pytest` como dependência de desenvolvimento (`uv add --dev pytest` em `backend/`)
-- [X] T002 [P] Criar diretórios `backend/src/financial_planner/nodes/`, `backend/src/financial_planner/parsers/` e
-      `backend/src/financial_planner/db/`, cada um com `__init__.py`
-- [X] T003 [P] Criar `backend/tests/__init__.py`, `backend/tests/fixtures/bradesco/` e
+- [X] T001 Add `pytest` as a development dependency (`uv add --dev pytest` in `backend/`)
+- [X] T002 [P] Create directories `backend/src/financial_planner/nodes/`, `backend/src/financial_planner/parsers/`,
+      and `backend/src/financial_planner/db/`, each with `__init__.py`
+- [X] T003 [P] Create `backend/tests/__init__.py`, `backend/tests/fixtures/bradesco/`, and
       `backend/tests/fixtures/inter/`
 
-**Checkpoint**: estrutura de pastas pronta para receber código de domínio e testes.
+**Checkpoint**: folder structure ready to receive domain code and tests.
 
 ---
 
 ## Phase 2: Foundational (Blocking Prerequisites)
 
-**Purpose**: peças compartilhadas pelas três user stories — schema de transação, acesso a banco e contrato de
-parser. Nenhuma user story pode ser implementada antes desta fase.
+**Purpose**: pieces shared by all three user stories — transaction schema, database access, and the parser
+contract. No user story can be implemented before this phase.
 
-**⚠️ CRITICAL**: bloqueia todas as user stories abaixo.
+**⚠️ CRITICAL**: blocks all user stories below.
 
-- [X] T004 Definir o schema tipado da Transação normalizada e do `ImportResult` (campos desta feature, ver
-      `data-model.md`) em `backend/src/financial_planner/state.py`
-- [X] T005 Criar `backend/src/financial_planner/db/schema.sql` com a tabela `transactions` (subset usado por esta
-      feature: `dedup_hash`, `date`, `description_raw`, `account`, `type`, `amount`, `month_ref`, mais colunas
-      nullable `category`/`subcategory`/`confidence`/`installment_id` reservadas para features futuras), usando SQL
-      padrão (Princípio IV — persistência portável)
-- [X] T006 Implementar `backend/src/financial_planner/db/repository.py` com `transaction_exists(dedup_hash)` e
-      `insert_transaction(transaction)`, únicos pontos de acesso ao SQLite (depende de T005)
-- [X] T007 [P] Definir o contrato comum de adapter (assinaturas de detecção e parsing, ver
-      `contracts/parser-adapter.md`) em `backend/src/financial_planner/parsers/base.py`
-- [X] T008 Implementar normalização de valor (formato brasileiro → decimal) e data (`DD/MM/AAAA` → ISO) em
-      `backend/src/financial_planner/parsers/normalize.py` (depende de T004)
-- [X] T009 Implementar cálculo do hash de deduplicação (SHA-256 sobre `date+description_raw+amount+account`
-      normalizados, ver `research.md`) em `backend/src/financial_planner/parsers/dedup.py` (depende de T008)
+- [X] T004 Define the typed schema for the normalized Transaction and for `ImportResult` (this feature's fields,
+      see `data-model.md`) in `backend/src/financial_planner/state.py`
+- [X] T005 Create `backend/src/financial_planner/db/schema.sql` with the `transactions` table (subset used by this
+      feature: `dedup_hash`, `date`, `description_raw`, `account`, `type`, `amount`, `month_ref`, plus nullable
+      `category`/`subcategory`/`confidence`/`installment_id` columns reserved for future features), using
+      standard SQL (Principle IV — portable persistence)
+- [X] T006 Implement `backend/src/financial_planner/db/repository.py` with `transaction_exists(dedup_hash)` and
+      `insert_transaction(transaction)`, the only points of SQLite access (depends on T005)
+- [X] T007 [P] Define the shared adapter contract (detection and parsing signatures, see
+      `contracts/parser-adapter.md`) in `backend/src/financial_planner/parsers/base.py`
+- [X] T008 Implement amount normalization (Brazilian format → decimal) and date normalization (`DD/MM/YYYY` → ISO)
+      in `backend/src/financial_planner/parsers/normalize.py` (depends on T004)
+- [X] T009 Implement the deduplication hash computation (SHA-256 over normalized
+      `date+description_raw+amount+account`, see `research.md`) in
+      `backend/src/financial_planner/parsers/dedup.py` (depends on T008)
 
-**Checkpoint**: fundação pronta — as três user stories podem começar.
+**Checkpoint**: foundation ready — all three user stories can start.
 
 ---
 
-## Phase 3: User Story 1 - Importar extrato de um banco suportado (Priority: P1) 🎯 MVP
+## Phase 3: User Story 1 - Import a statement from a supported bank (Priority: P1) 🎯 MVP
 
-**Goal**: dado um CSV do Bradesco ou do Inter, detectar o banco automaticamente e obter as transações do mês em
-formato normalizado único.
+**Goal**: given a CSV from Bradesco or Inter, automatically detect the bank and get the month's transactions in a
+single normalized format.
 
-**Independent Test**: rodar a ingestão contra uma fixture de cada banco e verificar que a saída é uma lista de
-transações no schema normalizado (Cenário 1 de `quickstart.md`).
+**Independent Test**: run ingestion against a fixture from each bank and verify the output is a list of
+transactions in the normalized schema (Scenario 1 of `quickstart.md`).
 
 ### Tests for User Story 1 ⚠️
 
-> Escrever estes testes primeiro; devem falhar antes da implementação.
+> Write these tests first; they must fail before implementation.
 
-- [X] T010 [P] [US1] Criar fixtures CSV do Bradesco (caso feliz + BOM + header duplicado "Últimos Lancamentos" +
-      rodapé "Total") em `backend/tests/fixtures/bradesco/`
-- [X] T011 [P] [US1] Criar fixtures CSV do Inter (caso feliz + `Descrição` vazia + linhas de metadado) em
+- [X] T010 [P] [US1] Create Bradesco CSV fixtures (happy path + BOM + duplicated "Últimos Lancamentos" header +
+      "Total" footer) in `backend/tests/fixtures/bradesco/`
+- [X] T011 [P] [US1] Create Inter CSV fixtures (happy path + blank `Descrição` + metadata lines) in
       `backend/tests/fixtures/inter/`
-- [X] T012 [P] [US1] Teste unitário de parsing do Bradesco em
-      `backend/tests/test_parsers.py::test_parse_bradesco` (depende de T010)
-- [X] T013 [P] [US1] Teste unitário de parsing do Inter, incluindo fallback `Descrição` → `Histórico`, em
-      `backend/tests/test_parsers.py::test_parse_inter` (depende de T011)
-- [X] T014 [P] [US1] Teste unitário de detecção automática de banco (Bradesco, Inter) em
-      `backend/tests/test_parsers.py::test_detect_bank` (depende de T010, T011)
+- [X] T012 [P] [US1] Unit test for Bradesco parsing in
+      `backend/tests/test_parsers.py::test_parse_bradesco` (depends on T010)
+- [X] T013 [P] [US1] Unit test for Inter parsing, including the `Descrição` → `Histórico` fallback, in
+      `backend/tests/test_parsers.py::test_parse_inter` (depends on T011)
+- [X] T014 [P] [US1] Unit test for automatic bank detection (Bradesco, Inter) in
+      `backend/tests/test_parsers.py::test_detect_bank` (depends on T010, T011)
 
 ### Implementation for User Story 1
 
-- [X] T015 [US1] Implementar filtro de linha de transação por regex de data (`^\d{2}/\d{2}/\d{4};`) reutilizável
-      pelos dois adapters em `backend/src/financial_planner/parsers/base.py` (depende de T007)
-- [X] T016 [P] [US1] Implementar adapter do Bradesco (duas colunas Crédito/Débito, `Docto.`) em
-      `backend/src/financial_planner/parsers/bradesco.py` (depende de T015, T008, T009)
-- [X] T017 [P] [US1] Implementar adapter do Inter (coluna `Valor` com sinal, fallback de descrição) em
-      `backend/src/financial_planner/parsers/inter.py` (depende de T015, T008, T009)
-- [X] T018 [US1] Implementar detecção automática de banco por estrutura de colunas em
-      `backend/src/financial_planner/parsers/detect.py` (depende de T016, T017)
-- [X] T019 [US1] Implementar node `detect_and_parse` orquestrando detecção + adapter + persistência via
-      `db/repository.py` em `backend/src/financial_planner/nodes/ingest.py` (depende de T006, T018)
+- [X] T015 [US1] Implement the transaction-line filter via date regex (`^\d{2}/\d{2}/\d{4};`), reusable by both
+      adapters, in `backend/src/financial_planner/parsers/base.py` (depends on T007)
+- [X] T016 [P] [US1] Implement the Bradesco adapter (two Credit/Debit columns, `Docto.`) in
+      `backend/src/financial_planner/parsers/bradesco.py` (depends on T015, T008, T009)
+- [X] T017 [P] [US1] Implement the Inter adapter (signed `Valor` column, description fallback) in
+      `backend/src/financial_planner/parsers/inter.py` (depends on T015, T008, T009)
+- [X] T018 [US1] Implement automatic bank detection by column structure in
+      `backend/src/financial_planner/parsers/detect.py` (depends on T016, T017)
+- [X] T019 [US1] Implement the `detect_and_parse` node, orchestrating detection + adapter + persistence via
+      `db/repository.py`, in `backend/src/financial_planner/nodes/ingest.py` (depends on T006, T018)
 
-**Checkpoint**: User Story 1 completa e testável de forma independente.
+**Checkpoint**: User Story 1 complete and independently testable.
 
 ---
 
-## Phase 4: User Story 2 - Reimportar um extrato sem duplicar transações (Priority: P2)
+## Phase 4: User Story 2 - Reimport a statement without duplicating transactions (Priority: P2)
 
-**Goal**: reimportar o mesmo arquivo (ou um com período sobreposto) não deve criar transações duplicadas.
+**Goal**: reimporting the same file (or one with an overlapping period) must not create duplicate transactions.
 
-**Independent Test**: importar a mesma fixture duas vezes e verificar que a segunda execução não insere nada novo
-(Cenário 2 de `quickstart.md`).
+**Independent Test**: import the same fixture twice and verify the second run inserts nothing new (Scenario 2 of
+`quickstart.md`).
 
 ### Tests for User Story 2 ⚠️
 
-- [X] T020 [P] [US2] Teste unitário: reimportar a mesma fixture do Bradesco resulta em zero transações novas, em
-      `backend/tests/test_parsers.py::test_reimport_skips_duplicates` (depende de T010)
-- [X] T021 [P] [US2] Teste unitário: duas transações equivalentes vindas de seções diferentes do mesmo arquivo
-      Bradesco (extrato principal + "Últimos Lancamentos") geram apenas uma transação, em
+- [X] T020 [P] [US2] Unit test: reimporting the same Bradesco fixture results in zero new transactions, in
+      `backend/tests/test_parsers.py::test_reimport_skips_duplicates` (depends on T010)
+- [X] T021 [P] [US2] Unit test: two equivalent transactions coming from different sections of the same Bradesco
+      file (main statement + "Últimos Lancamentos") produce only one transaction, in
       `backend/tests/test_parsers.py::test_dedup_within_same_file`
 
 ### Implementation for User Story 2
 
-- [X] T022 [US2] Estender o node `detect_and_parse` para checar `transaction_exists(dedup_hash)` antes de inserir e
-      contabilizar `transactions_imported` / `transactions_skipped_duplicate` no `ImportResult` em
-      `backend/src/financial_planner/nodes/ingest.py` (depende de T019, T006, T004)
+- [X] T022 [US2] Extend the `detect_and_parse` node to check `transaction_exists(dedup_hash)` before inserting and
+      to track `transactions_imported` / `transactions_skipped_duplicate` in `ImportResult`, in
+      `backend/src/financial_planner/nodes/ingest.py` (depends on T019, T006, T004)
 
-**Checkpoint**: User Story 1 e 2 funcionam juntas — reimportação é segura.
+**Checkpoint**: User Story 1 and 2 work together — reimport is safe.
 
 ---
 
-## Phase 5: User Story 3 - Ser avisado quando um arquivo não pôde ser processado corretamente (Priority: P3)
+## Phase 5: User Story 3 - Be warned when a file couldn't be processed correctly (Priority: P3)
 
-**Goal**: banco não reconhecido ou saldo que não reconcilia gera aviso/erro explícito, nunca falha silenciosa.
+**Goal**: an unrecognized bank or a balance that doesn't reconcile produces an explicit warning/error, never a
+silent failure.
 
-**Independent Test**: rodar a ingestão contra um arquivo de banco não suportado e contra uma fixture com saldo
-propositalmente incorreto (Cenário 3 de `quickstart.md`).
+**Independent Test**: run ingestion against an unsupported-bank file and against a fixture with a deliberately
+wrong balance (Scenario 3 of `quickstart.md`).
 
 ### Tests for User Story 3 ⚠️
 
-- [X] T023 [P] [US3] Teste unitário: arquivo com layout não reconhecido retorna erro explícito e nenhuma transação,
-      em `backend/tests/test_parsers.py::test_detect_unknown_bank`
-- [X] T024 [P] [US3] Teste unitário: fixture com saldo alterado propositalmente produz
-      `balance_reconciliation = mismatch` e mensagem em `warnings`, mantendo as transações corretas importadas, em
-      `backend/tests/test_parsers.py::test_balance_reconciliation_mismatch`
+- [X] T023 [P] [US3] Unit test: a file with an unrecognized layout returns an explicit error and no transaction,
+      in `backend/tests/test_parsers.py::test_detect_unknown_bank`
+- [X] T024 [P] [US3] Unit test: a fixture with a deliberately altered balance produces
+      `balance_reconciliation = mismatch` and a message in `warnings`, while still importing the correctly
+      recognized transactions, in `backend/tests/test_parsers.py::test_balance_reconciliation_mismatch`
 
 ### Implementation for User Story 3
 
-- [X] T025 [US3] Implementar retorno de erro explícito para banco não reconhecido em
-      `backend/src/financial_planner/parsers/detect.py` (depende de T018)
-- [X] T026 [US3] Implementar checagem de saldo (saldo anterior ± valor da transação == saldo declarado, com
-      tolerância de arredondamento) em `backend/src/financial_planner/parsers/reconcile.py` (depende de T015)
-- [X] T027 [US3] Integrar erro de banco não reconhecido e avisos de reconciliação ao `ImportResult` retornado pelo
-      node `detect_and_parse` em `backend/src/financial_planner/nodes/ingest.py` (depende de T022, T025, T026)
+- [X] T025 [US3] Implement an explicit error return for an unrecognized bank in
+      `backend/src/financial_planner/parsers/detect.py` (depends on T018)
+- [X] T026 [US3] Implement the balance check (previous balance ± transaction amount == declared balance, with a
+      rounding tolerance) in `backend/src/financial_planner/parsers/reconcile.py` (depends on T015)
+- [X] T027 [US3] Wire the unrecognized-bank error and reconciliation warnings into the `ImportResult` returned by
+      the `detect_and_parse` node, in `backend/src/financial_planner/nodes/ingest.py` (depends on T022, T025, T026)
 
-**Checkpoint**: as três user stories funcionam de forma independente e integrada.
+**Checkpoint**: all three user stories work independently and together.
 
 ---
 
 ## Phase 6: Polish & Cross-Cutting Concerns
 
-- [X] T028 [P] Rodar os cenários de `quickstart.md` manualmente contra um extrato real (fora do repositório, via
-      `extracts/`) para validar end-to-end antes de considerar a feature pronta
-- [X] T029 Revisar `nodes/ingest.py` contra o Princípio II da constituição (node não deve importar `pandas` nem
-      `sqlite3` diretamente — apenas via `parsers/` e `db/repository.py`)
-- [X] T030 [P] Documentar em `backend/README.md` como rodar os testes desta feature (`uv run pytest`)
+- [X] T028 [P] Run the `quickstart.md` scenarios manually against a real statement (outside the repository, via
+      `extracts/`) to validate end-to-end before considering the feature done
+- [X] T029 Review `nodes/ingest.py` against Principle II of the constitution (the node must not import `pandas`
+      or `sqlite3` directly — only via `parsers/` and `db/repository.py`)
+- [X] T030 [P] Document in `backend/README.md` how to run this feature's tests (`uv run pytest`)
 
 ---
 
@@ -174,79 +176,78 @@ propositalmente incorreto (Cenário 3 de `quickstart.md`).
 
 ### Phase Dependencies
 
-- **Setup (Phase 1)**: sem dependências — pode começar imediatamente
-- **Foundational (Phase 2)**: depende do Setup — bloqueia todas as user stories
-- **User Stories (Phase 3-5)**: todas dependem do Foundational
-  - US1 é a base funcional; US2 e US3 estendem o node criado em US1 (T019), então na prática são sequenciais
-    (US1 → US2 → US3) apesar de testáveis de forma independente
-- **Polish (Phase 6)**: depende de todas as user stories desejadas estarem completas
+- **Setup (Phase 1)**: no dependencies — can start immediately
+- **Foundational (Phase 2)**: depends on Setup — blocks all user stories
+- **User Stories (Phase 3-5)**: all depend on Foundational
+  - US1 is the functional base; US2 and US3 extend the node created in US1 (T019), so in practice they're
+    sequential (US1 → US2 → US3) despite being independently testable
+- **Polish (Phase 6)**: depends on all desired user stories being complete
 
 ### Within Each User Story
 
-- Testes são escritos antes da implementação e devem falhar primeiro
-- Fixtures antes dos testes que as usam
-- `parsers/base.py` (linha de transação) antes dos adapters específicos
-- Adapters antes da detecção automática
-- Detecção + adapters antes do node de orquestração
+- Tests are written before implementation and must fail first
+- Fixtures before the tests that use them
+- `parsers/base.py` (transaction line) before the specific adapters
+- Adapters before automatic detection
+- Detection + adapters before the orchestration node
 
 ### Parallel Opportunities
 
-- T002, T003 (Setup) em paralelo
-- T007 (Foundational) em paralelo com T004/T005 (arquivos diferentes)
-- T010, T011 (fixtures) em paralelo; T012, T013, T014 (testes) em paralelo entre si após as fixtures
-- T016, T017 (adapters Bradesco/Inter) em paralelo entre si
-- T020, T021 (testes US2) em paralelo
-- T023, T024 (testes US3) em paralelo
+- T002, T003 (Setup) in parallel
+- T007 (Foundational) in parallel with T004/T005 (different files)
+- T010, T011 (fixtures) in parallel; T012, T013, T014 (tests) in parallel with each other after the fixtures
+- T016, T017 (Bradesco/Inter adapters) in parallel with each other
+- T020, T021 (US2 tests) in parallel
+- T023, T024 (US3 tests) in parallel
 
 ---
 
 ## Parallel Example: User Story 1
 
 ```bash
-# Fixtures em paralelo:
-Task: "Criar fixtures CSV do Bradesco em backend/tests/fixtures/bradesco/"
-Task: "Criar fixtures CSV do Inter em backend/tests/fixtures/inter/"
+# Fixtures in parallel:
+Task: "Create Bradesco CSV fixtures in backend/tests/fixtures/bradesco/"
+Task: "Create Inter CSV fixtures in backend/tests/fixtures/inter/"
 
-# Adapters em paralelo (depois de T015 pronto):
-Task: "Implementar adapter do Bradesco em backend/src/financial_planner/parsers/bradesco.py"
-Task: "Implementar adapter do Inter em backend/src/financial_planner/parsers/inter.py"
+# Adapters in parallel (once T015 is ready):
+Task: "Implement the Bradesco adapter in backend/src/financial_planner/parsers/bradesco.py"
+Task: "Implement the Inter adapter in backend/src/financial_planner/parsers/inter.py"
 ```
 
 ---
 
 ## Implementation Strategy
 
-### MVP First (User Story 1 apenas)
+### MVP First (User Story 1 only)
 
-1. Completar Phase 1 (Setup) e Phase 2 (Foundational)
-2. Completar Phase 3 (US1)
-3. Validar Cenário 1 de `quickstart.md` manualmente
-4. Nesse ponto já é possível importar um extrato de qualquer um dos dois bancos — MVP da feature
+1. Complete Phase 1 (Setup) and Phase 2 (Foundational)
+2. Complete Phase 3 (US1)
+3. Manually validate Scenario 1 of `quickstart.md`
+4. At this point it's already possible to import a statement from either bank — the feature's MVP
 
 ### Incremental Delivery
 
-1. Setup + Foundational → base pronta
-2. US1 → importação funcional (MVP)
-3. US2 → reimportação segura, sem duplicar
-4. US3 → visibilidade de erros/inconsistências
-5. Polish → validação end-to-end com dado real (fora do repo) + revisão de aderência à constituição
+1. Setup + Foundational → base ready
+2. US1 → functional import (MVP)
+3. US2 → safe reimport, no duplicates
+4. US3 → visibility into errors/inconsistencies
+5. Polish → end-to-end validation with real data (outside the repo) + constitution-compliance review
 
 ---
 
 ## Notes
 
-- Todas as tasks de teste usam apenas fixtures sintéticas pequenas — nenhum dado financeiro real entra no
-  repositório (constituição, "Proteção de Dados Sensíveis")
-- Categoria, subcategoria, confiança e parcelamento permanecem `NULL`/não tocados por esta feature — são
-  responsabilidade de specs futuras
-- Commitar após cada task ou grupo lógico de tasks
-- **T028 concluída** com os 2 extratos reais do usuário (Bradesco + Inter, ago/2026) em `extracts/` (gitignored,
-  confirmado via `git check-ignore`). Os 3 cenários do `quickstart.md` reconciliaram corretamente. A validação com dado real
-  encontrou 2 bugs não previstos pela spec/fixtures originais, corrigidos e cobertos por novos testes de
-  regressão (11/11 passando):
-  1. Linha administrativa do Bradesco com Crédito e Débito ambos em branco (ex.: "COD. LANC. 0") crashava o
-     parser — corrigido para tratar como transação de valor zero.
-  2. A checagem de reconciliação de saldo normalizava o saldo sempre para valor absoluto, perdendo o sinal em
-     contas com saldo negativo (cheque especial), e assumia ordem cronológica ascendente no arquivo — mas o
-     export do Inter vem em ordem descendente (mais recente primeiro). Ambos corrigidos em
-     `parsers/reconcile.py`.
+- All test tasks use only small synthetic fixtures — no real financial data enters the repository (constitution,
+  "Sensitive Data Protection")
+- Category, subcategory, confidence, and installments stay `NULL`/untouched by this feature — they're later
+  specs' responsibility
+- Commit after each task or logical group of tasks
+- **T028 completed** with the user's 2 real statements (Bradesco + Inter, Aug/2026) in `extracts/` (gitignored,
+  confirmed via `git check-ignore`). All 3 `quickstart.md` scenarios reconciled correctly. Validating against real
+  data found 2 bugs not anticipated by the original spec/fixtures, fixed and covered by new regression tests
+  (11/11 passing):
+  1. A Bradesco administrative line with both Credit and Debit blank (e.g. "COD. LANC. 0") crashed the parser —
+     fixed to treat it as a zero-amount transaction.
+  2. The balance-reconciliation check always normalized the balance to an absolute value, losing the sign on
+     accounts with a negative balance (overdraft), and assumed ascending chronological order in the file — but
+     the Inter export comes in descending order (most recent first). Both fixed in `parsers/reconcile.py`.
