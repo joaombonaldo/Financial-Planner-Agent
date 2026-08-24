@@ -21,7 +21,9 @@ uv run python -m financial_planner.interface.cli 2026-08 /path/to/financial-plan
 Imports the statements, categorizes them, and enters a terminal review loop for every transaction with
 `confidence != high` (including transfer candidates). Interrupting the process (Ctrl+C) doesn't lose decisions
 already made — running the same command again resumes exactly from the next pending item, thanks to the LangGraph
-checkpointer (`thread_id = month_ref`).
+checkpointer (`thread_id = month_ref`). Once the month has nothing left pending, the graph automatically persists
+every confirmed category into `merchant_memory` (`nodes/memory.py`) — that same merchant auto-categorizes with
+`confidence = high` the next time it shows up, in any future month.
 
 ## How the tests drive the graph without a real terminal
 
