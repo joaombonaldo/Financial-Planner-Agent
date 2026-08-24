@@ -1,5 +1,17 @@
 # financial-planner (backend)
 
+## Variáveis de ambiente
+
+Usadas pela feature de categorização (`nodes/categorize.py` → `llm/client.py`) para configurar o LLM local:
+
+| Variável | Default | Descrição |
+|---|---|---|
+| `OLLAMA_MODEL` | `qwen2.5` | Modelo servido pelo Ollama local |
+| `OLLAMA_BASE_URL` | `http://localhost:11434` | Endpoint do servidor Ollama |
+
+Nenhuma delas é necessária para rodar a suíte de testes — o LLM é sempre mockado nos testes automatizados
+(`tests/fixtures/categorization/llm_double.py`), nunca depende de Ollama rodando.
+
 ## Rodando os testes
 
 ```sh

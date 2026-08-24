@@ -210,6 +210,7 @@ dependencies = [
     { name = "openpyxl" },
     { name = "pandas" },
     { name = "python-dotenv" },
+    { name = "pyyaml" },
 ]
 
 [package.dev-dependencies]
@@ -225,6 +226,7 @@ requires-dist = [
     { name = "openpyxl", specifier = ">=3.1.5" },
     { name = "pandas", specifier = ">=3.0.5" },
     { name = "python-dotenv", specifier = ">=1.2.3" },
+    { name = "pyyaml", specifier = ">=6.0.3" },
 ]
 
 [package.metadata.requires-dev]

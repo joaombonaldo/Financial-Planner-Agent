@@ -1,0 +1,49 @@
+# Taxonomia inicial de categorias (Anexo A do BRD).
+# Lista sujeita a expansão conforme merchants reais aparecerem na revisão mensal.
+
+categories:
+  Moradia:
+    - Aluguel/Financiamento
+    - Condomínio
+    - Energia
+    - Água
+    - Internet
+    - Gás
+  Alimentação:
+    - Mercado
+    - Restaurante/Delivery
+    - Padaria/Café
+  Transporte:
+    - Combustível
+    - Uber/99
+    - Transporte público
+    - Manutenção veículo
+    - Estacionamento
+  Saúde:
+    - Plano de saúde
+    - Farmácia
+    - Consultas
+  Assinaturas:
+    - Streaming
+    - Software/SaaS
+    - Academia
+    - Seguros
+  Lazer:
+    - Viagem
+    - Eventos/Shows
+    - Hobbies
+  Educação:
+    - Cursos
+    - Livros
+    - Mensalidade
+  Vestuário:
+    - Roupas
+    - Calçados
+  "Cartão de crédito/Parcelamentos": []
+  "Transferência interna": []
+  Receita:
+    - Salário
+    - Freelance/Extra
+    - Reembolso
+    - Outras entradas
+  Outros: []
