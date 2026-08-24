@@ -53,3 +53,21 @@ class ImportResult:
 
 class UnrecognizedBankError(Exception):
     """Raised when a statement file doesn't match any supported bank."""
+
+
+class BudgetStatus(str, Enum):
+    WITHIN_BUDGET = "within_budget"
+    OVER_BUDGET = "over_budget"
+
+
+@dataclass
+class CategoryComparison:
+    category: str
+    goal: float
+    actual_spend: float
+    difference: float
+    status: BudgetStatus
+
+
+class BudgetNotConfiguredError(Exception):
+    """Raised when no local budget configuration file exists."""
