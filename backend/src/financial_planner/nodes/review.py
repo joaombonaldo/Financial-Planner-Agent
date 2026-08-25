@@ -24,7 +24,7 @@ from financial_planner.db import repository
 from financial_planner.state import Transaction
 
 
-def _build_payload(transaction: Transaction, error: str | None = None) -> dict:
+def _build_payload(transaction: Transaction, taxonomy: Taxonomy, error: str | None = None) -> dict:
     payload = {
         "transaction": {
             "date": transaction.date.isoformat(),
@@ -36,6 +36,7 @@ def _build_payload(transaction: Transaction, error: str | None = None) -> dict:
             "confidence": transaction.confidence,
         },
         "is_transfer_candidate": transaction.category == TRANSFER_CATEGORY,
+        "suggested_subcategories": taxonomy.subcategories_for(transaction.category),
     }
     if error:
         payload["error"] = error
@@ -77,13 +78,13 @@ def review(month_ref: str, db_path: str) -> None:
         is_transfer = transaction.category == TRANSFER_CATEGORY
         taxonomy = load_taxonomy()
 
-        payload = _build_payload(transaction)
+        payload = _build_payload(transaction, taxonomy)
         while True:
             answer = interrupt(payload)
             result = _parse_answer(answer, transaction, is_transfer, taxonomy)
 
             if result is None:
-                payload = _build_payload(transaction, error=f"Resposta inválida: {answer!r}")
+                payload = _build_payload(transaction, taxonomy, error=f"Resposta inválida: {answer!r}")
                 continue
 
             category, subcategory = result

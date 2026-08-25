@@ -17,9 +17,22 @@ from financial_planner.llm.client import get_chat_model
 _PROMPT_TEMPLATE = (
     "Categorize a transação abaixo em uma categoria e subcategoria da taxonomia disponível.\n"
     "Descrição: {description}\n"
-    "Categorias disponíveis: {categories}\n"
-    'Responda apenas no formato "categoria|subcategoria" (subcategoria vazia se não houver).'
+    "Taxonomia disponível (categoria: subcategorias):\n{taxonomy}\n"
+    "Se a categoria escolhida tiver subcategorias listadas, você DEVE escolher uma delas — não deixe a "
+    "subcategoria vazia nesse caso. Subcategoria vazia só é aceitável para categorias sem nenhuma "
+    "subcategoria listada.\n"
+    'Responda apenas no formato "categoria|subcategoria" (subcategoria vazia apenas se a categoria não '
+    "tiver nenhuma)."
 )
+
+
+def _describe_taxonomy(taxonomy: Taxonomy) -> str:
+    lines = []
+    for category in taxonomy.category_names():
+        subcategories = taxonomy.subcategories_for(category)
+        suffix = ", ".join(subcategories) if subcategories else "(sem subcategorias)"
+        lines.append(f"- {category}: {suffix}")
+    return "\n".join(lines)
 
 
 class ChatModel(Protocol):
@@ -30,9 +43,7 @@ def categorize_via_llm(
     description_raw: str, taxonomy: Taxonomy, chat_model: ChatModel | None = None
 ) -> tuple[str, str | None, Literal["medium", "low"]]:
     model = chat_model or get_chat_model()
-    prompt = _PROMPT_TEMPLATE.format(
-        description=description_raw, categories=", ".join(taxonomy.category_names())
-    )
+    prompt = _PROMPT_TEMPLATE.format(description=description_raw, taxonomy=_describe_taxonomy(taxonomy))
     response = model.invoke(prompt)
     raw = response.content.strip()
 
