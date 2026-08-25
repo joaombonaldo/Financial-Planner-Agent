@@ -22,7 +22,7 @@ def parse(path: str) -> list[Transaction]:
 
     transactions: list[Transaction] = []
     for line in tx_lines:
-        date_str, description_raw, _doc_number, credit, debit, _balance = line.split(";")[:6]
+        date_str, description_raw, doc_number, credit, debit, _balance = line.split(";")[:6]
 
         transaction_date = parse_brl_date(date_str)
         description = description_raw.strip()
@@ -40,8 +40,12 @@ def parse(path: str) -> list[Transaction]:
             amount = 0.0
             tx_type = TransactionType.EXPENSE
 
+        # Docto. distinguishes two real transactions that otherwise share date,
+        # description and amount. The duplicated "Últimos Lancamentos" block repeats
+        # the same Docto. value along with everything else, so it still collapses to
+        # the same hash — see dedup.py's docstring.
         dedup_hash = compute_dedup_hash(
-            transaction_date, description, amount, Bank.BRADESCO.value
+            transaction_date, description, amount, Bank.BRADESCO.value, doc_number.strip()
         )
 
         transactions.append(

@@ -18,6 +18,14 @@ def parse(path: str) -> list[Transaction]:
     text = Path(path).read_text(encoding="utf-8-sig")
     tx_lines = filter_transaction_lines(text.splitlines())
 
+    # Inter's export has no per-line document/reference number (unlike Bradesco's
+    # Docto.), so two real transactions sharing date+description+amount can't be told
+    # apart from their fields alone. Counting occurrences of the same key, in file
+    # order, gives each one a distinct-but-deterministic discriminator: reparsing the
+    # same file reproduces the same sequence of counts, so reimport dedup (FR-006)
+    # still works, while two distinct transactions within one file no longer collide.
+    occurrence_counts: dict[tuple, int] = {}
+
     transactions: list[Transaction] = []
     for line in tx_lines:
         date_str, generic_description, merchant_description, amount_str, _balance = line.split(";")[:5]
@@ -31,8 +39,12 @@ def parse(path: str) -> list[Transaction]:
             TransactionType.EXPENSE if raw_amount.startswith("-") else TransactionType.INCOME
         )
 
+        key = (transaction_date, description, amount)
+        occurrence = occurrence_counts.get(key, 0)
+        occurrence_counts[key] = occurrence + 1
+
         dedup_hash = compute_dedup_hash(
-            transaction_date, description, amount, Bank.INTER.value
+            transaction_date, description, amount, Bank.INTER.value, str(occurrence)
         )
 
         transactions.append(
