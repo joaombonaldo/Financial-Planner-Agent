@@ -9,8 +9,10 @@ from financial_planner.state import Bank, BalanceReconciliation, TransactionType
 BRADESCO_HAPPY_PATH = "tests/fixtures/bradesco/happy_path.csv"
 BRADESCO_WRONG_BALANCE = "tests/fixtures/bradesco/wrong_balance.csv"
 BRADESCO_ADMIN_LINE = "tests/fixtures/bradesco/admin_line_and_negative_balance.csv"
+BRADESCO_SAME_DAY_SAME_AMOUNT = "tests/fixtures/bradesco/same_day_same_amount.csv"
 INTER_HAPPY_PATH = "tests/fixtures/inter/happy_path.csv"
 INTER_DESCENDING_ORDER = "tests/fixtures/inter/descending_order.csv"
+INTER_SAME_DAY_SAME_AMOUNT = "tests/fixtures/inter/same_day_same_amount.csv"
 UNRECOGNIZED_BANK = "tests/fixtures/unrecognized_bank.csv"
 
 
@@ -129,3 +131,50 @@ def test_balance_reconciliation_normalizes_descending_file_order():
 
     assert reconciliation == BalanceReconciliation.OK
     assert warnings == []
+
+
+# --- Regression: dedup hash collision on same date+description+amount (009) -----------
+# See docs/decisions/dedup-hash-discriminator.md for the full rationale.
+
+
+def test_bradesco_distinct_transactions_same_fields_get_different_hashes():
+    """Two real transactions sharing date/description/amount but with different
+    Docto. numbers must not collide — only literal file duplicates (same Docto. too)
+    should collapse."""
+    transactions = bradesco.parse(BRADESCO_SAME_DAY_SAME_AMOUNT)
+
+    assert len(transactions) == 2
+    assert transactions[0].dedup_hash != transactions[1].dedup_hash
+
+
+def test_bradesco_same_day_same_amount_both_survive_import(tmp_path):
+    db_path = str(tmp_path / "test.db")
+
+    result = detect_and_parse(BRADESCO_SAME_DAY_SAME_AMOUNT, db_path)
+
+    assert result.transactions_imported == 2
+    assert result.transactions_skipped_duplicate == 0
+
+
+def test_inter_distinct_transactions_same_fields_get_different_hashes():
+    """Inter has no document number to disambiguate on, so two real same-day,
+    same-description, same-amount transactions must be told apart by their position
+    in the file instead of colliding."""
+    transactions = inter.parse(INTER_SAME_DAY_SAME_AMOUNT)
+
+    assert len(transactions) == 2
+    assert transactions[0].dedup_hash != transactions[1].dedup_hash
+
+
+def test_inter_same_day_same_amount_reimport_is_still_idempotent(tmp_path):
+    """The occurrence-based discriminator must stay deterministic across reimports of
+    the same file, or FR-006 (no duplicate on reimport) would regress."""
+    db_path = str(tmp_path / "test.db")
+
+    first = detect_and_parse(INTER_SAME_DAY_SAME_AMOUNT, db_path)
+    assert first.transactions_imported == 2
+    assert first.transactions_skipped_duplicate == 0
+
+    second = detect_and_parse(INTER_SAME_DAY_SAME_AMOUNT, db_path)
+    assert second.transactions_imported == 0
+    assert second.transactions_skipped_duplicate == 2
