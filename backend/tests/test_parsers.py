@@ -14,6 +14,8 @@ INTER_HAPPY_PATH = "tests/fixtures/inter/happy_path.csv"
 INTER_DESCENDING_ORDER = "tests/fixtures/inter/descending_order.csv"
 INTER_SAME_DAY_SAME_AMOUNT = "tests/fixtures/inter/same_day_same_amount.csv"
 UNRECOGNIZED_BANK = "tests/fixtures/unrecognized_bank.csv"
+DETECT_FALSE_POSITIVE_BRADESCO = "tests/fixtures/detect/false_positive_bradesco_substrings.csv"
+DETECT_FALSE_POSITIVE_INTER = "tests/fixtures/detect/false_positive_inter_substrings.csv"
 
 
 # --- User Story 1: import a statement from a supported bank ---------------------------
@@ -88,6 +90,23 @@ def test_dedup_within_same_file(tmp_path):
 def test_detect_unknown_bank():
     with pytest.raises(UnrecognizedBankError):
         detect_bank(UNRECOGNIZED_BANK)
+
+
+# --- Regression: header-line match instead of whole-file substring search (010) -------
+# See docs/decisions/detect-bank-header-line-match.md for the full rationale. Both
+# fixtures contain, in a free-text field, every substring the old implementation
+# checked for — under the old `"X" in text` logic, both would have been misdetected
+# as a supported bank instead of correctly rejected.
+
+
+def test_detect_rejects_free_text_that_merely_contains_bradesco_column_names():
+    with pytest.raises(UnrecognizedBankError):
+        detect_bank(DETECT_FALSE_POSITIVE_BRADESCO)
+
+
+def test_detect_rejects_free_text_that_merely_contains_inter_column_names():
+    with pytest.raises(UnrecognizedBankError):
+        detect_bank(DETECT_FALSE_POSITIVE_INTER)
 
 
 def test_balance_reconciliation_ok():
