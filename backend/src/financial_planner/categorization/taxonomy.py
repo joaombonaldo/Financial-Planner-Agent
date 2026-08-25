@@ -35,6 +35,9 @@ class Taxonomy:
     def category_names(self) -> list[str]:
         return list(self._categories.keys())
 
+    def subcategories_for(self, category: str) -> list[str]:
+        return list(self._categories.get(category, []))
+
 
 def load_taxonomy(path: Path = _CATEGORIES_PATH) -> Taxonomy:
     raw = yaml.safe_load(path.read_text(encoding="utf-8"))

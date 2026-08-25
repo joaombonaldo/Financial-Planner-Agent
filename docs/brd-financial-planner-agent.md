@@ -1,7 +1,7 @@
 # BRD — Financial Planner with AI Agents (LangGraph)
 
 **Status:** Draft v1
-**Last updated:** 2026-08-22
+**Last updated:** 2026-08-25
 **Author:** João Miguel
 
 ---
@@ -77,6 +77,7 @@ detect_and_parse → categorize → human_review (interrupt) → update_memory
 - Confidence represented categorically (`high` / `medium` / `low`), not numerically — aligned with what LLMs can reliably estimate
 - `high`: already-known merchant → passes straight through
 - `medium`/`low`: goes to `human_review`
+- Subcategory selection is required whenever the chosen category has subcategories in the taxonomy — the LLM is instructed to always pick one in that case, not just the top-level category (categories with no subcategories, e.g. `Outros`, keep an empty subcategory). Since every LLM-sourced categorization is already `medium`/`low` confidence and therefore always goes through `human_review`, a wrong subcategory guess is never a new risk — it's still caught by the existing review step (see specs/008-required-subcategory). During `human_review`, the valid subcategories for the suggested category are shown to the user to make correcting/confirming easier.
 
 ### 5.2 Transfers between the user's own accounts
 - Transactions with a transfer pattern (`TED`, `PIX`, `DOC`) and a mirrored amount in another account (±2-day window) are **suggested** as "Transferência interna" (internal transfer) by `categorize`, but confirmed via `human_review` — never excluded automatically without supervision

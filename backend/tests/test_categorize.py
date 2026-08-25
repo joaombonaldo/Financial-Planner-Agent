@@ -80,6 +80,40 @@ def test_llm_response_outside_taxonomy_falls_back(tmp_path):
     assert _category_row(db_path, "hash-4") == ("Outros", None, "low")
 
 
+def test_llm_prompt_lists_subcategories_and_requires_them_when_available(tmp_path):
+    db_path = str(tmp_path / "test.db")
+    conn = repository.connect(db_path)
+    seed_transaction(conn, make_transaction("hash-prompt", "Aluguel Imobiliaria"))
+    conn.close()
+
+    fake_llm = FakeChatModel("Moradia|Aluguel/Financiamento")
+    categorize(MONTH_REF, db_path, chat_model=fake_llm)
+
+    prompt = fake_llm.calls[0]
+    assert "Moradia: Aluguel/Financiamento, Condomínio" in prompt
+    assert "Outros: (sem subcategorias)" in prompt
+    assert "DEVE escolher uma delas" in prompt
+
+
+def test_llm_empty_subcategory_for_category_with_options_is_not_invalid(tmp_path):
+    """FR-004 (spec 008): a category with subcategories, but an empty subcategory answer from the
+    LLM, must NOT fall back to Outros/low — it should keep the chosen category (with empty
+    subcategory) so it still reaches human_review, same as any other LLM-sourced categorization.
+    """
+    db_path = str(tmp_path / "test.db")
+    conn = repository.connect(db_path)
+    seed_transaction(conn, make_transaction("hash-5", "Aluguel Imobiliaria"))
+    conn.close()
+
+    fake_llm = FakeChatModel("Moradia|")
+    categorize(MONTH_REF, db_path, chat_model=fake_llm)
+
+    category, subcategory, confidence = _category_row(db_path, "hash-5")
+    assert category == "Moradia"
+    assert subcategory is None
+    assert confidence in ("medium", "low")
+
+
 # --- User Story 3: flag transfer candidates -----------------------------------------------
 
 

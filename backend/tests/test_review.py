@@ -84,6 +84,42 @@ def test_review_rejects_invalid_category_and_reasks(tmp_path):
     assert _category_row(db_path, "hash-4") == ("Vestuário", "Roupas", "high")
 
 
+# --- Feature 008: list valid subcategories while reviewing -------------------------------
+
+
+def test_review_payload_lists_valid_subcategories_for_suggested_category(tmp_path):
+    db_path = str(tmp_path / "test.db")
+    conn = repository.connect(db_path)
+    seed_categorized_transaction(
+        conn, "hash-7", "Aluguel Imobiliaria", category="Moradia", confidence="low"
+    )
+    conn.close()
+
+    graph = build_review_only_graph(db_path)
+    payloads = drive_review(graph, "thread-7", MONTH_REF, db_path, answers=["aceitar"])
+
+    assert payloads[0]["suggested_subcategories"] == [
+        "Aluguel/Financiamento",
+        "Condomínio",
+        "Energia",
+        "Água",
+        "Internet",
+        "Gás",
+    ]
+
+
+def test_review_payload_has_no_subcategories_for_category_without_any(tmp_path):
+    db_path = str(tmp_path / "test.db")
+    conn = repository.connect(db_path)
+    seed_categorized_transaction(conn, "hash-8", "Loja Nova", category="Outros", confidence="low")
+    conn.close()
+
+    graph = build_review_only_graph(db_path)
+    payloads = drive_review(graph, "thread-8", MONTH_REF, db_path, answers=["aceitar"])
+
+    assert payloads[0]["suggested_subcategories"] == []
+
+
 # --- User Story 2: confirm or reject transfer candidates ---------------------------------
 
 

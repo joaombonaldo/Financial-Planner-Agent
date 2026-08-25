@@ -22,6 +22,9 @@ def _format_payload(payload: dict) -> str:
     ]
     if payload.get("error"):
         lines.append(f"  ! {payload['error']}")
+    subcategories = payload.get("suggested_subcategories") or []
+    if subcategories:
+        lines.append(f"  subcategorias válidas para {tx['category']}: {', '.join(subcategories)}")
     if payload["is_transfer_candidate"]:
         lines.append('  Responda "confirmar" ou "categoria|subcategoria" para rejeitar:')
     else:
