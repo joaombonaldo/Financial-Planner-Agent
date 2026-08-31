@@ -83,6 +83,89 @@ def test_report_excludes_transfers_from_totals(tmp_path):
     assert all(e.category != "Transferência interna" for e in report.category_breakdown)
 
 
+# --- Feature 012: shared-expense reimbursement netting -----------------------------------
+
+
+def test_reimbursement_excluded_from_income_and_nets_the_category(tmp_path):
+    db_path = str(tmp_path / "test.db")
+    conn = repository.connect(db_path)
+    seed_categorized_transaction(
+        conn, "r-1", "Salário", category="Receita", subcategory="Salário",
+        confidence="high", amount=5000.0, tx_type=TransactionType.INCOME,
+    )
+    seed_categorized_transaction(
+        conn, "r-2", "SUPERMERCADO XPTO", category="Alimentação", subcategory="Mercado",
+        confidence="high", amount=800.0,
+    )
+    seed_categorized_transaction(
+        conn, "r-3", "PIX RECEBIDO IRMAO - divisao mercado", category="Receita",
+        subcategory="Reembolso", confidence="high", amount=400.0,
+        tx_type=TransactionType.INCOME,
+    )
+    conn.close()
+
+    report = generate_report(MONTH_REF, db_path)
+
+    # Reembolso is NOT income.
+    assert report.total_income == 5000.0
+    assert report.total_reimbursements == 400.0
+    # Expense and net balance are net of the reimbursement.
+    assert report.total_expense == 400.0
+    assert report.net_balance == 4600.0
+
+    entry = next(e for e in report.category_breakdown if e.category == "Alimentação")
+    assert entry.gross == 800.0
+    assert entry.reimbursed == 400.0
+    assert entry.net == 400.0
+    assert entry.total == 400.0  # `total` holds the net figure for existing consumers
+    assert report.unattributed_reimbursements == 0.0
+
+
+def test_unattributed_reimbursement_reduces_total_only(tmp_path):
+    db_path = str(tmp_path / "test.db")
+    conn = repository.connect(db_path)
+    seed_categorized_transaction(
+        conn, "u-1", "SUPERMERCADO XPTO", category="Alimentação", subcategory="Mercado",
+        confidence="high", amount=800.0,
+    )
+    seed_categorized_transaction(
+        conn, "u-2", "PIX RECEBIDO", category="Receita", subcategory="Reembolso",
+        confidence="high", amount=400.0, tx_type=TransactionType.INCOME,
+    )
+    conn.close()
+
+    report = generate_report(MONTH_REF, db_path)
+
+    assert report.total_reimbursements == 400.0
+    assert report.unattributed_reimbursements == 400.0
+    assert report.total_expense == 400.0  # 800 gross - 400 unattributed
+    assert report.net_balance == -400.0
+
+    entry = next(e for e in report.category_breakdown if e.category == "Alimentação")
+    assert entry.gross == 800.0
+    assert entry.reimbursed == 0.0
+    assert entry.total == 800.0  # category line untouched
+
+
+def test_report_without_reimbursements_leaves_fields_zero(tmp_path):
+    db_path = str(tmp_path / "test.db")
+    conn = repository.connect(db_path)
+    seed_categorized_transaction(
+        conn, "n-1", "Mercado A", category="Alimentação", subcategory="Mercado",
+        confidence="high", amount=100.0,
+    )
+    conn.close()
+
+    report = generate_report(MONTH_REF, db_path)
+
+    assert report.total_reimbursements == 0.0
+    assert report.unattributed_reimbursements == 0.0
+    assert report.total_expense == 100.0
+    entry = next(e for e in report.category_breakdown if e.category == "Alimentação")
+    assert entry.gross == entry.net == entry.total == 100.0
+    assert entry.reimbursed == 0.0
+
+
 # --- User Story 3: budget and insights carried through unmodified --------------------------
 
 

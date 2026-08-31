@@ -12,6 +12,11 @@ from typing import Protocol
 from financial_planner.budget.spending import compute_category_spend
 from financial_planner.db import repository
 from financial_planner.llm.client import get_chat_model
+from financial_planner.nodes.report import (
+    INCOME_CATEGORY,
+    REIMBURSEMENT_SUBCATEGORY,
+    compute_reimbursements,
+)
 from financial_planner.state import InsightsResult
 
 _PROMPT_TEMPLATE = """Você é um assistente financeiro pessoal. Escreva um resumo curto, em português, sobre a
@@ -23,12 +28,20 @@ Gasto por categoria em {month_ref}:
 
 Comparação com a meta de orçamento:
 {budget_report}
-{previous_month_section}
+{reimbursement_section}{previous_month_section}
 Escreva de forma direta, destacando para onde o dinheiro foi e qualquer categoria estourada."""
 
 _PREVIOUS_MONTH_TEMPLATE = """
 Gasto por categoria no mês anterior ({previous_month_ref}), para comparação:
 {previous_spend}
+"""
+
+# Feature 012: shared-expense reimbursements. A `Receita / Reembolso` inflow is NOT
+# income — it abates the expense category it offsets. Feed the gross/reimbursed/net
+# split into the prompt so the summary can report the real (net) cost per category.
+_REIMBURSEMENT_TEMPLATE = """
+Reembolsos de despesas compartilhadas em {month_ref} (o reembolso NÃO é receita — ele abate a despesa):
+{reimbursement_lines}
 """
 
 
@@ -47,6 +60,22 @@ def _format_spend(spend: dict[str, float]) -> str:
     if not spend:
         return "(nenhum gasto registrado)"
     return "\n".join(f"- {category}: R$ {amount:.2f}" for category, amount in spend.items())
+
+
+def _format_reimbursements(summary, gross_by_category: dict[str, float]) -> str:
+    lines = []
+    for category, reimbursed in sorted(summary.by_category.items()):
+        gross = gross_by_category.get(category, 0.0)
+        lines.append(
+            f"- {category}: R$ {gross:.2f} bruto, R$ {reimbursed:.2f} reembolsado, "
+            f"R$ {gross - reimbursed:.2f} líquido"
+        )
+    if summary.unattributed:
+        lines.append(
+            f"- Reembolsos não atribuídos a uma categoria específica: "
+            f"R$ {summary.unattributed:.2f} (abatidos do total de despesas)"
+        )
+    return "\n".join(lines)
 
 
 def _format_budget_report(budget_report: list[dict] | None) -> str:
@@ -79,6 +108,24 @@ def generate_insights(
     current_spend = compute_category_spend(current_transactions)
     previous_spend = compute_category_spend(previous_transactions) if previous_transactions else {}
 
+    # Feature 012: net the month's Reembolso inflows against expense categories.
+    # `current_spend` is already gross expense per category (Reembolso is type
+    # income, so compute_category_spend never counted it).
+    reimbursement_inflows = [
+        (t.description_raw, t.amount)
+        for t in current_transactions
+        if t.confidence == "high"
+        and t.category == INCOME_CATEGORY
+        and t.subcategory == REIMBURSEMENT_SUBCATEGORY
+    ]
+    reimbursements = compute_reimbursements(reimbursement_inflows, current_spend)
+    reimbursement_section = ""
+    if reimbursements.total:
+        reimbursement_section = _REIMBURSEMENT_TEMPLATE.format(
+            month_ref=month_ref,
+            reimbursement_lines=_format_reimbursements(reimbursements, current_spend),
+        )
+
     previous_month_section = ""
     if previous_spend:
         previous_month_section = _PREVIOUS_MONTH_TEMPLATE.format(
@@ -90,6 +137,7 @@ def generate_insights(
         month_ref=month_ref,
         current_spend=_format_spend(current_spend),
         budget_report=_format_budget_report(budget_report),
+        reimbursement_section=reimbursement_section,
         previous_month_section=previous_month_section,
     )
 
