@@ -46,4 +46,7 @@ categories:
     - Freelance/Extra
     - Reembolso
     - Outras entradas
+  # Added ahead of Phase 3 to reduce CDB/Aplicação miscategorization; full
+  # investment tracking remains Phase 3.
+  Investimento: []
   Outros: []

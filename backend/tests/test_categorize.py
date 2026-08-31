@@ -1,5 +1,6 @@
 from datetime import date
 
+from financial_planner.categorization.taxonomy import load_taxonomy
 from financial_planner.db import repository
 from financial_planner.nodes.categorize import categorize
 from financial_planner.state import Bank, TransactionType
@@ -112,6 +113,60 @@ def test_llm_empty_subcategory_for_category_with_options_is_not_invalid(tmp_path
     assert category == "Moradia"
     assert subcategory is None
     assert confidence in ("medium", "low")
+
+
+# --- Taxonomy / prompt guidance: Investimento + Pagamento Fatura ------------------------
+
+
+def test_investimento_is_accepted_taxonomy_category():
+    taxonomy = load_taxonomy()
+    assert "Investimento" in taxonomy.category_names()
+    assert taxonomy.is_valid("Investimento", None)
+    assert taxonomy.subcategories_for("Investimento") == []
+
+
+def test_cdb_description_suggested_as_investimento(tmp_path):
+    db_path = str(tmp_path / "test.db")
+    conn = repository.connect(db_path)
+    seed_transaction(conn, make_transaction("hash-cdb", "Cdb Pos Di Liq. Banco Inter"))
+    conn.close()
+
+    fake_llm = FakeChatModel("Investimento|")
+    categorize(MONTH_REF, db_path, chat_model=fake_llm)
+
+    assert _category_row(db_path, "hash-cdb") == ("Investimento", None, "medium")
+
+
+def test_pagamento_fatura_suggested_as_card_payments(tmp_path):
+    db_path = str(tmp_path / "test.db")
+    conn = repository.connect(db_path)
+    seed_transaction(conn, make_transaction("hash-fatura", "Pagamento Fatura"))
+    conn.close()
+
+    fake_llm = FakeChatModel("Cartão de crédito/Parcelamentos|")
+    categorize(MONTH_REF, db_path, chat_model=fake_llm)
+
+    assert _category_row(db_path, "hash-fatura") == (
+        "Cartão de crédito/Parcelamentos",
+        None,
+        "medium",
+    )
+
+
+def test_llm_prompt_includes_investimento_and_fatura_guidance(tmp_path):
+    db_path = str(tmp_path / "test.db")
+    conn = repository.connect(db_path)
+    seed_transaction(conn, make_transaction("hash-guidance", "Qualquer Estabelecimento"))
+    conn.close()
+
+    fake_llm = FakeChatModel("Outros|")
+    categorize(MONTH_REF, db_path, chat_model=fake_llm)
+
+    prompt = fake_llm.calls[0]
+    assert "CDB" in prompt
+    assert "→ Investimento" in prompt
+    assert "Pagamento Fatura" in prompt
+    assert "→ Cartão de crédito/Parcelamentos" in prompt
 
 
 # --- User Story 3: flag transfer candidates -----------------------------------------------

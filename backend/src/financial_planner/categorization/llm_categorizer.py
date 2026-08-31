@@ -21,6 +21,11 @@ _PROMPT_TEMPLATE = (
     "Se a categoria escolhida tiver subcategorias listadas, você DEVE escolher uma delas — não deixe a "
     "subcategoria vazia nesse caso. Subcategoria vazia só é aceitável para categorias sem nenhuma "
     "subcategoria listada.\n"
+    "Orientações específicas:\n"
+    '- Compras/aplicações de investimento como "CDB", "Aplicação", "Cdb Pos Di", "RDB", "Tesouro" → '
+    "Investimento.\n"
+    '- Pagamento de fatura de cartão de crédito saindo da conta corrente como "Pagamento efetuado", '
+    '"Pagamento Fatura", "PAGAMENTO DE FATURA" → Cartão de crédito/Parcelamentos.\n'
     'Responda apenas no formato "categoria|subcategoria" (subcategoria vazia apenas se a categoria não '
     "tiver nenhuma)."
 )
