@@ -86,13 +86,26 @@ def _report_node(state: GraphState) -> dict:
             "net_balance": report.net_balance,
             "transfer_total": report.transfer_total,
             "category_breakdown": [
-                {"category": e.category, "type": e.type.value, "total": e.total}
+                # Feature 012: `total` is the NET figure; `gross`/`reimbursed` are
+                # the detail the CLI printer uses to show "bruto - reembolso = líquido".
+                {
+                    "category": e.category,
+                    "type": e.type.value,
+                    "total": e.total,
+                    "gross": getattr(e, "gross", e.total),
+                    "reimbursed": getattr(e, "reimbursed", 0.0),
+                }
                 for e in report.category_breakdown
             ],
             "transaction_count": report.transaction_count,
             "budget_report": report.budget_report,
             "insights_summary": report.insights_summary,
             "insights_error": report.insights_error,
+            # Feature 012: shared-expense reimbursement aggregates (0.0 when none).
+            "total_reimbursements": getattr(report, "total_reimbursements", 0.0),
+            "unattributed_reimbursements": getattr(
+                report, "unattributed_reimbursements", 0.0
+            ),
         }
     }
 
