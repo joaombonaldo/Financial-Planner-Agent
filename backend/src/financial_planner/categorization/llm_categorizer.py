@@ -24,8 +24,15 @@ _PROMPT_TEMPLATE = (
     "Orientações específicas:\n"
     '- Compras/aplicações de investimento como "CDB", "Aplicação", "Cdb Pos Di", "RDB", "Tesouro" → '
     "Investimento.\n"
+    '- Rendimento/juros de aplicação como "RENTAB", "Rendimento" → Receita/Rendimentos.\n'
     '- Pagamento de fatura de cartão de crédito saindo da conta corrente como "Pagamento efetuado", '
-    '"Pagamento Fatura", "PAGAMENTO DE FATURA" → Cartão de crédito/Parcelamentos.\n'
+    '"Pagamento Fatura", "PAGAMENTO DE FATURA" → Cartão de crédito.\n'
+    "- Jantares, bares, encontros e saídas noturnas → Lazer/Restaurante/Bar; passeios, rolês e "
+    "atividades de lazer → Lazer/Passeios/Atividades.\n"
+    "- Perfumes e cosméticos → Compras/Perfumes/Cosméticos; roupas e calçados → Compras/Roupas/Calçados; "
+    "computador, celular e eletrônicos → Compras/Eletrônicos/Tecnologia.\n"
+    "- Psicólogo, psicoterapia e terapia → Saúde/Psicólogo/Terapia.\n"
+    "- Café, padaria, lanches e pequenas compras do dia a dia → Alimentação/Café/Lanches.\n"
     'Responda apenas no formato "categoria|subcategoria" (subcategoria vazia apenas se a categoria não '
     "tiver nenhuma)."
 )

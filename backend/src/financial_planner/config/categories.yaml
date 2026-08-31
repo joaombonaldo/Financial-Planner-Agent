@@ -1,5 +1,13 @@
-# Taxonomia inicial de categorias (Anexo A do BRD).
-# Lista sujeita a expansão conforme merchants reais aparecerem na revisão mensal.
+# Category taxonomy (Appendix A of the BRD), reworked from how the user actually
+# uses their debit/PIX + credit card (spec 011-taxonomy-reorg).
+#
+# Category and payment instrument (debit vs credit) are INDEPENDENT: any category
+# can occur on either instrument — "Lazer" and "Compras" are not credit-only. The
+# debit-vs-credit total rules live in the report node, not here.
+#
+# Names stay in Portuguese — this is the taxonomy the user applies to their own
+# (Brazilian) finances. List is still expected to grow as real merchants appear
+# during the monthly review.
 
 categories:
   Moradia:
@@ -11,42 +19,46 @@ categories:
     - Gás
   Alimentação:
     - Mercado
+    - Café/Lanches
     - Restaurante/Delivery
-    - Padaria/Café
   Transporte:
     - Combustível
     - Uber/99
-    - Transporte público
     - Manutenção veículo
-    - Estacionamento
   Saúde:
-    - Plano de saúde
+    - Psicólogo/Terapia
     - Farmácia
+    - Plano de saúde
     - Consultas
   Assinaturas:
     - Streaming
-    - Software/SaaS
     - Academia
     - Seguros
+    - Software/SaaS
   Lazer:
+    - Restaurante/Bar
+    - Passeios/Atividades
     - Viagem
     - Eventos/Shows
     - Hobbies
+  Compras:
+    - Roupas/Calçados
+    - Perfumes/Cosméticos
+    - Eletrônicos/Tecnologia
+    - Casa/Outros
   Educação:
     - Cursos
-    - Livros
     - Mensalidade
-  Vestuário:
-    - Roupas
-    - Calçados
-  "Cartão de crédito/Parcelamentos": []
+  # No subcategories — Phase 3 owns investment detail.
+  Investimento: []
+  # The debit-side credit-card fatura payment line. NOT excluded from spend totals.
+  "Cartão de crédito": []
+  # Excluded from spend totals (see report node).
   "Transferência interna": []
   Receita:
     - Salário
-    - Freelance/Extra
     - Reembolso
+    - Rendimentos
+    - Freelance/Extra
     - Outras entradas
-  # Added ahead of Phase 3 to reduce CDB/Aplicação miscategorization; full
-  # investment tracking remains Phase 3.
-  Investimento: []
   Outros: []

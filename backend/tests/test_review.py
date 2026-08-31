@@ -75,13 +75,13 @@ def test_review_rejects_invalid_category_and_reasks(tmp_path):
         "thread-4",
         MONTH_REF,
         db_path,
-        answers=["Categoria Que Não Existe", "Vestuário|Roupas"],
+        answers=["Categoria Que Não Existe", "Compras|Roupas/Calçados"],
     )
 
     assert len(payloads) == 2
     assert "error" not in payloads[0]
     assert "error" in payloads[1]
-    assert _category_row(db_path, "hash-4") == ("Vestuário", "Roupas", "high")
+    assert _category_row(db_path, "hash-4") == ("Compras", "Roupas/Calçados", "high")
 
 
 # --- Feature 008: list valid subcategories while reviewing -------------------------------
