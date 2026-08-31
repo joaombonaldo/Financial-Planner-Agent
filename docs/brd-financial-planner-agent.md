@@ -86,7 +86,14 @@ detect_and_parse → categorize → human_review (interrupt) → update_memory
 ### 5.3 Installments (credit card)
 - Each installment shows up in the normal monthly spend of its corresponding category
 - There's a dedicated table (`installments`) with total amount, number of installments, paid/remaining installments — queryable as a separate view
-- **Deferred to Phase 3** (decided 2026-08-30, see [docs/decisions/installments-deferred-to-phase-3.md](decisions/installments-deferred-to-phase-3.md)). Individual installment charges already flow through the pipeline in their category's spend (first bullet); only the aggregate `installments` table/view is deferred, alongside the Phase 3 investment-tracking work. The `installment_id` column stays as a nullable forward-compat stub.
+- **Deferred to Phase 3** (decided 2026-08-30, see [docs/decisions/installments-deferred-to-phase-3.md](decisions/installments-deferred-to-phase-3.md)). Individual installment charges already flow through the pipeline in their category's spend (first bullet); only the aggregate `installments` table/view is deferred, alongside the Phase 3 investment-tracking work. The `installment_id` column stays as a nullable forward-compat stub. The credit-card fatura parser (5.3.1) does parse the per-row installment marker (`Parcela k/n`) and carries it on the transaction (`installment_index` / `installment_count`), still without modeling the aggregate plan.
+
+### 5.3.1 Credit-card fatura stream (`instrument = credit`)
+- Credit-card purchases are ingested from the monthly **fatura PDF** (Bradesco, Inter) as a stream **separate** from the debit/PIX extracts. Decided 2026-08-30 — see [docs/decisions/credit-card-stream.md](decisions/credit-card-stream.md) and [specs/013-credit-card-stream/spec.md](../specs/013-credit-card-stream/spec.md).
+- Each purchase is itemized, categorized normally (**any** category — category and instrument are independent axes), dated by **purchase date**, and grouped by the **month of purchase** (`month_ref`).
+- Credit-card purchases are **NOT added to that month's headline expense total** — they're informational ("what I put on the card in July"). The amount that hits the debit total is the **fatura payment**: one line in the debit/PIX extract, in the month it's paid, categorized `Cartão de crédito` (per Appendix A), carrying a `fatura_ref` that points at the fatura it settles.
+- `fatura_ref` = `YYYY-MM` of the fatura's **due date** (the month it's paid). Sum of a fatura's credit purchases reconciles against its payment line ± fatura interest / annuity / IOF.
+- The existing debit-oriented nodes (report, budget, insights, categorize) read the **debit stream only** by default, so credit purchases never leak into the headline debit totals. Wiring the dual-stream report is a documented follow-up (spec §"Follow-up: report integration").
 
 ### 5.4 Income and expenses
 - The system tracks full movement (inflows and outflows), not just spending
@@ -95,6 +102,13 @@ detect_and_parse → categorize → human_review (interrupt) → update_memory
 ### 5.5 Budget goals
 - Phase 1: `config/budget.local.yaml` file (gitignored), read via a `get_budget()` function
 - Phase 2: the same function starts reading from Supabase, without changing the rest of the system
+
+### 5.6 Shared expenses / reimbursements
+- The user splits some expenses with a third party (e.g. 50/50 with their brother): a shared expense (a supermarket run under `Alimentação/Mercado`, a house bill under `Moradia`, …) is followed within a few days by an inbound PIX of roughly the other person's share.
+- That inbound repayment is categorized as **`Receita / Reembolso`** during `human_review` (the subcategory already exists in the taxonomy). It is **not earnings**, so the report and insights treat it specially:
+  - `Reembolso` is **excluded from total income**.
+  - It is **netted against expenses**. The monthly report shows, per affected category, **gross spend, reimbursed amount, and net spend**; the overall expense total and net balance reflect the **net** figures.
+- **Attribution (known simplification)**: there is no transaction-to-transaction matching in this phase. Each `Reembolso` inflow is attributed to an expense category by **best-effort substring matching of its description against taxonomy-derived category keywords** (category and subcategory names). An inflow that matches zero categories, more than one, or a category with no spend that month is reported as a single **"Reembolsos não atribuídos"** line that still reduces the overall expense total and net balance, just not a specific category. Precise transaction-pair matching is a possible later refinement via `human_review`.
 
 ---
 
@@ -114,8 +128,12 @@ category
 subcategory
 confidence          # high | medium | low
 installment_id      # FK, nullable
-month_ref           # e.g. "2026-08"
+month_ref           # e.g. "2026-08" — month of the purchase/movement
+instrument          # debit | credit (default debit) — feature 013; credit = itemized fatura purchase
+fatura_ref          # nullable "YYYY-MM" — the fatura a credit row belongs to (or, later, the fatura a debit "Cartão de crédito" line settles)
 ```
+
+`instrument` and `fatura_ref` were added by feature 013 (see 5.3.1). `dedup_hash` for a credit row folds in a `credit:`-prefixed discriminator (card tail + installment index/count + per-file occurrence index), since a fatura has no `Docto.` number — see [docs/decisions/credit-card-stream.md](decisions/credit-card-stream.md). Migration SQL for the existing DB (`ALTER TABLE … ADD COLUMN`) is in that decision doc.
 
 ### 6.2 Installments
 
@@ -130,7 +148,11 @@ installments
 └── account
 ```
 
+Deferred to Phase 3 (see 5.3). Feature 013's fatura parser already extracts each row's `Parcela k/n` marker into the transaction's `installment_index` / `installment_count` (carried on the object, not persisted as columns); this `installments` aggregate table — linking a plan's rows across faturas — is what remains deferred.
+
 ### 6.3 Source format per bank
+
+#### 6.3.1 Debit / PIX current-account extract (CSV)
 
 **Status: confirmed from real exports** (period 24/07 to 22/08/2026, 1 month, both banks).
 
@@ -153,6 +175,30 @@ installments
 - **Internal transfer detection (section 5.2) is weaker on the Bradesco side**: since Bradesco's `Histórico` never names the counterparty (just generic "PIX ENVIADO"/"PIX RECEBIDO"), matching a transfer between the two own accounts will depend almost entirely on **mirrored amount + date window**, not text — which was already the designed rule, but we've now confirmed there's no extra textual signal on the Bradesco side to reinforce the match. This reinforces the decision to always keep this in `human_review`, never automatic.
 - **`dedup_hash` (section 6.1) remains necessary even though no exact duplicate was found in this sample** — Bradesco has two sections (`main statement` + `Últimos Lancamentos`) with potential overlap in future re-exports (e.g. re-exporting to include already-processed days).
 - **The `Saldo` (balance) column on both banks** can serve as a parser sanity check in automated testing: the previous row's balance ± the current row's amount should match the following row's balance.
+
+#### 6.3.2 Credit-card fatura (PDF)
+
+**Status: confirmed from one real fatura per bank** (collected 2026-08-30). Both have a real text layer (no OCR), neither is password-protected. Detection branches on the `.pdf` extension, then matches a verbatim issuer string (`Bradesco Cart…`, `BANCO INTER S/A`). Full details in [docs/decisions/credit-card-stream.md](decisions/credit-card-stream.md).
+
+| Aspect | Bradesco fatura | Inter fatura |
+|---|---|---|
+| Producer / pages | iText, 2 pages | Chromium print → pdfcpu, 8 pages |
+| Text layer | yes | yes |
+| Password | none (env-var fallback `CREDIT_CARD_PDF_PASSWORD[_BANK]` if ever needed) | none |
+| File integrity | clean | valid PDF preceded by ~436 KB of NUL bytes — stripped before parsing |
+| Row date | `DD/MM` — **no year**, inferred from the due date | `DD de <mês>. AAAA` — full date |
+| Row layout | `DD/MM  descrição  [cidade]  [US$]  R$ valor[-]`; a rates/limits table is printed to the right at the same height and is filtered out by x-coordinate | `DD de mês. AAAA  descrição  -  [+ ]R$ valor` (the lone `-` is the empty "Beneficiário" column) |
+| Installment marker | bare `NN/MM` inside the description (`HOTEL … 03/06`) | `(Parcela NN de MM)` inside the description |
+| Payment / credit row | trailing `-` on the amount and/or `PAGTO`/`ESTORNO` keyword → `income`, excluded from card-spend sum | leading `+` before `R$` and/or keyword → `income` |
+| Foreign currency | US$ and R$ on the same line (BRL is the rightmost token) | separate un-dated `Valor e símbolo da moeda de origem: …` lines → ignored |
+| Per-cardholder sections | `… Cartão 4066 XXXX XXXX 8989` headers + `Total para<nome>` subtotals | `CARTÃO 5361****1034` headers + `Total CARTÃO …` subtotals |
+| Next-fatura installments | not in sample | `Próxima fatura` block, rows have **no date prefix** → ignored |
+| Total | "Total da fatura em real" / "(=)Total" | "Fatura atual" / running page header |
+| Due date | "Total da fatura / Vencimento … 04/09/2026" | header line / "Data de Vencimento" |
+| Closing date | only the **next** fatura's is printed ("Previsão de fechamento…") | only the **next** fatura's cut is printed ("Data de corte") |
+| Previous balance | "Saldo anterior… R$ 638,06" | "Valor antecipado R$ 0,00" |
+
+**Parsing strategy:** same philosophy as the CSV path — `pdfplumber` pulls the text layer, then a per-line transaction regex (date at line start) decides what becomes a transaction; subtotals, headers, FX-detail lines and next-fatura installments are all excluded because they don't match. On both real files the sum of the `expense` rows equals the parsed fatura total exactly (Bradesco R$ 700,05 over 5 rows; Inter R$ 3.122,62 over 28 rows).
 
 ---
 
@@ -246,29 +292,35 @@ financial-planner-agent/
 
 ---
 
-## Appendix A — Initial category taxonomy
+## Appendix A — Category taxonomy
 
 Category and subcategory names are kept in Portuguese here and throughout the codebase (`config/categories.yaml`), since this is the taxonomy the user actually applies to their own (Brazilian) finances.
+
+Reworked in `011-taxonomy-reorg` to match how the user actually uses their debit/PIX + credit card. **Category and payment instrument (debit vs credit) are independent** — any category can occur on either instrument; `Lazer` and `Compras` are not credit-only. The debit-vs-credit total rules live in the report node (§5.2), not in the taxonomy.
 
 | Category | Subcategories |
 |---|---|
 | Moradia | Aluguel/Financiamento, Condomínio, Energia, Água, Internet, Gás |
-| Alimentação | Mercado, Restaurante/Delivery, Padaria/Café |
-| Transporte | Combustível, Uber/99, Transporte público, Manutenção veículo, Estacionamento |
-| Saúde | Plano de saúde, Farmácia, Consultas |
-| Assinaturas | Streaming, Software/SaaS, Academia |
-| Lazer | Viagem, Eventos/Shows, Hobbies |
-| Educação | Cursos, Livros, Mensalidade |
-| Vestuário | Roupas, Calçados |
-| Cartão de crédito/Parcelamentos | (own view — see section 5.3) |
+| Alimentação | Mercado, Café/Lanches, Restaurante/Delivery |
+| Transporte | Combustível, Uber/99, Manutenção veículo |
+| Saúde | Psicólogo/Terapia, Farmácia, Plano de saúde, Consultas |
+| Assinaturas | Streaming, Academia, Seguros, Software/SaaS |
+| Lazer | Restaurante/Bar, Passeios/Atividades, Viagem, Eventos/Shows, Hobbies |
+| Compras | Roupas/Calçados, Perfumes/Cosméticos, Eletrônicos/Tecnologia, Casa/Outros |
+| Educação | Cursos, Mensalidade |
+| Investimento | (no subcategories — Phase 3 owns investment detail) |
+| Cartão de crédito | (debit-side fatura payment line; **not** excluded from spend totals — see section 5.3) |
 | Transferência interna | (excluded from spend total — see section 5.2) |
-| Receita | Salário, Freelance/Extra, Reembolso, Outras entradas |
-| Investimento | Added ahead of Phase 3 to reduce CDB/Aplicação miscategorization; full investment tracking remains Phase 3 |
+| Receita | Salário, Reembolso, Rendimentos, Freelance/Extra, Outras entradas |
 | Outros | Fallback for low confidence |
 
-*Initial list — subject to expansion as real merchants show up during monthly review.*
+*Subject to expansion as real merchants show up during monthly review.*
 
-**Findings from the real exports that suggest a taxonomy adjustment:**
-- `Aplicação` (e.g. "Cdb Pos Di Liq. Banco Inter") — an investment contribution. A dedicated `Investimento` category now exists (added ahead of Phase 3 to reduce this specific CDB/Aplicação miscategorization, which was landing as `Receita`); full investment tracking still arrives in Phase 3.
-- `Deb Cartao + Protegido` (card insurance) — suggested as a new `Seguros` subcategory under `Assinaturas`.
-- `Pagamento efetuado` / "Pagamento Fatura" (credit card bill payment, leaving the checking account) — maps to `Cartão de crédito/Parcelamentos` as the month's aggregate payment; it's made up of the individual installments already categorized separately (see section 5.3). This is now encoded as categorizer prompt guidance (descriptions like "Pagamento efetuado" / "Pagamento Fatura" / "PAGAMENTO DE FATURA" are suggested as `Cartão de crédito/Parcelamentos`), still confirmed during `human_review` like every other suggestion.
+**Changes from the previous list (and the findings they resolve):**
+- `Vestuário` (Roupas, Calçados) renamed to **`Compras`** with broader subcategories (Roupas/Calçados, Perfumes/Cosméticos, Eletrônicos/Tecnologia, Casa/Outros) — the user shops for more than clothing on both instruments.
+- `Cartão de crédito/Parcelamentos` renamed to **`Cartão de crédito`** — it is the single debit-side fatura payment line (`Pagamento efetuado` / `Pagamento Fatura` / `PAGAMENTO DE FATURA`), encoded as categorizer prompt guidance and confirmed during `human_review` like any other suggestion. Installment-level detail remains Phase 3.
+- `Alimentação/Padaria/Café` renamed to **`Café/Lanches`**; small daily coffee/bakery/snack spend routes here via prompt guidance.
+- Added `Saúde/Psicólogo/Terapia`, `Lazer/Restaurante/Bar`, `Lazer/Passeios/Atividades`, `Receita/Rendimentos`.
+- Dropped `Transporte/Transporte público`, `Transporte/Estacionamento`, `Educação/Livros` (unused in real exports).
+- `Investimento` — dedicated category (added ahead of Phase 3) for CDB/Aplicação/RDB/Tesouro contributions that were landing as `Receita`. Investment yield/interest (`RENTAB`, `Rendimento`) routes to `Receita/Rendimentos`.
+- `Seguros` (e.g. `Deb Cartao + Protegido`, card insurance) is now a live subcategory under `Assinaturas`.
