@@ -14,10 +14,14 @@ CREATE TABLE IF NOT EXISTS transactions (
     category TEXT,                        -- filled in by this feature (categorize)
     subcategory TEXT,                     -- filled in by this feature (categorize)
     confidence TEXT,                      -- filled in by this feature (categorize)
-    installment_id INTEGER                -- future feature: installments
+    installment_id INTEGER,               -- future feature: installments
+    instrument TEXT NOT NULL DEFAULT 'debit',  -- feature 013: 'debit' | 'credit' (credit = itemized fatura purchase)
+    fatura_ref TEXT                       -- feature 013: YYYY-MM of the fatura this row belongs to (credit rows) or settles (debit payment line, later)
 );
 
 CREATE INDEX IF NOT EXISTS idx_transactions_dedup_hash ON transactions (dedup_hash);
+CREATE INDEX IF NOT EXISTS idx_transactions_instrument_month ON transactions (instrument, month_ref);
+CREATE INDEX IF NOT EXISTS idx_transactions_fatura_ref ON transactions (fatura_ref);
 
 -- Merchant -> category mapping already confirmed in previous runs.
 -- This feature (categorize) only reads it; writing is a future feature's
