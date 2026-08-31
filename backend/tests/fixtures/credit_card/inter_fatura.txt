@@ -1,0 +1,34 @@
+Resumo da fatura
+Total da sua fatura R$ 3.122,62
+Data de Vencimento 02/09/2026
+TITULAR DE EXEMPLO
+0000****1234 02/09/2026 R$ 3.122,62
+DESPESAS DO MES VALOR ANTECIPADO FATURA ATUAL
+Despesas do mes R$ 3.122,62
+Valor total de juros e encargos R$ 53,65
+Valor antecipado R$ 0,00
+Fatura atual R$ 3.122,62
+Despesas da fatura
+CARTÃO 0000****1234
+Data Movimentacao Beneficiario Valor
+03 de ago. 2026 PAGTO DEBITO AUTOMATICO - + R$ 1.217,08
+03 de ago. 2026 Google YouTubePremium - R$ 26,90
+Total CARTÃO 0000****1234 R$ 26,90
+CARTÃO 0000****5678
+Data Movimentacao Beneficiario Valor
+06 de mar. 2026 AMAZON BR (Parcela 06 de 07) - R$ 31,28
+28 de mar. 2026 CP PARC DUO GOURMET (Parcela 05 de 05) - R$ 108,00
+25 de jul. 2026 GIANLUCA - DINARTE - R$ 42,00
+28 de jul. 2026 WWW.WORKHUMAN.COM - R$ 5,37
+Valor e simbolo da moeda de origem: 1,00 USD
+Valor em dolar americano: $ 1,00
+Cotacao do dolar americano: R$ 5,3731
+29 de jul. 2026 IOF INTERNACIONAL - R$ 0,19
+22 de ago. 2026 AMAZONMKTPLC*AHDASILVA (Parcela 01 de 11) - R$ 53,40
+23 de ago. 2026 SABOR DE LUNA - R$ 107,80
+23 de ago. 2026 SABOR DE LUNA - R$ 29,00
+Total CARTÃO 0000****5678 R$ 348,71
+Proxima fatura
+Data de corte: 25/09/2026
+AMAZON BR (Parcela 07 de 07) R$ 31,28
+BENEFICIARIO BANCO INTER S/A CNPJ: 00.000.000\0001-00

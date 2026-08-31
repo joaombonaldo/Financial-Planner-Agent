@@ -20,6 +20,19 @@ class Bank(str, Enum):
     INTER = "inter"
 
 
+class Instrument(str, Enum):
+    """Payment stream a transaction belongs to.
+
+    `debit` covers the debit/PIX current-account extracts (features 001+). `credit`
+    covers itemized credit-card purchases parsed from a fatura PDF (feature 013):
+    a separate stream, dated by purchase date, that does NOT feed the month's
+    headline expense total — see docs/decisions/credit-card-stream.md.
+    """
+
+    DEBIT = "debit"
+    CREDIT = "credit"
+
+
 class BalanceReconciliation(str, Enum):
     OK = "ok"
     MISMATCH = "mismatch"
@@ -39,12 +52,21 @@ class Transaction:
     subcategory: str | None = None
     confidence: str | None = None
     installment_id: int | None = None
+    # Feature 013 (credit-card fatura stream). instrument/fatura_ref are persisted;
+    # installment_index/installment_count are parsed and carried on the object for
+    # reconciliation and dedup but not stored as columns yet (the full installments
+    # feature is deferred — see docs/decisions/installments-deferred-to-phase-3.md).
+    instrument: Instrument = Instrument.DEBIT
+    fatura_ref: str | None = None
+    installment_index: int | None = None
+    installment_count: int | None = None
 
 
 @dataclass
 class ImportResult:
     bank: Bank
     source_file: str
+    instrument: Instrument = Instrument.DEBIT
     transactions_imported: int = 0
     transactions_skipped_duplicate: int = 0
     balance_reconciliation: BalanceReconciliation = BalanceReconciliation.NOT_AVAILABLE
