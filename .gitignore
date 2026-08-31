@@ -1,6 +1,11 @@
 # Dados sensíveis / reais — nunca entram no repo
 extracts/
+data/
 *.db
+*.db-shm
+*.db-wal
+*.db-journal
+*.db.bak*
 backend/.env
 backend/src/financial_planner/config/budget.local.yaml
 
