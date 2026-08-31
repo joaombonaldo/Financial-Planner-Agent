@@ -6,9 +6,12 @@ All printed/prompted text stays in Portuguese: this is the app's actual runtime
 language, since the user runs it in Portuguese (see contracts/review-node.md).
 """
 
-import sys
+import argparse
+import os
 
 from langgraph.types import Command
+
+DEFAULT_DB_PATH = "data/financial-planner.db"
 
 from financial_planner.graph import build_graph
 
@@ -81,13 +84,31 @@ def _print_report(report: dict) -> None:
         print(f"\n(Não foi possível gerar insights: {report['insights_error']})")
 
 
-def main() -> None:
-    if len(sys.argv) < 3:
-        print("uso: python -m financial_planner.interface.cli <month_ref> <db_path> [extrato.csv ...]")
-        sys.exit(1)
+def _build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="financial-planner",
+        usage="financial-planner <month_ref> <extrato.csv> [extrato.csv ...] [--db PATH]",
+    )
+    parser.add_argument("month_ref", help="mês de referência, ex.: 2026-08")
+    parser.add_argument(
+        "statement_files",
+        nargs="+",
+        metavar="extrato.csv",
+        help="um ou mais extratos bancários em CSV",
+    )
+    parser.add_argument(
+        "--db",
+        "--db-path",
+        dest="db_path",
+        default=os.environ.get("SQLITE_DB_PATH") or DEFAULT_DB_PATH,
+        help="caminho do banco SQLite (padrão: $SQLITE_DB_PATH ou %(default)s)",
+    )
+    return parser
 
-    month_ref, db_path, *source_files = sys.argv[1:]
-    run_month(month_ref, db_path, source_files)
+
+def main() -> None:
+    args = _build_parser().parse_args()
+    run_month(args.month_ref, args.db_path, args.statement_files)
 
 
 if __name__ == "__main__":

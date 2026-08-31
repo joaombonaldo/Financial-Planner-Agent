@@ -86,6 +86,7 @@ detect_and_parse → categorize → human_review (interrupt) → update_memory
 ### 5.3 Installments (credit card)
 - Each installment shows up in the normal monthly spend of its corresponding category
 - There's a dedicated table (`installments`) with total amount, number of installments, paid/remaining installments — queryable as a separate view
+- **Deferred to Phase 3** (decided 2026-08-30, see [docs/decisions/installments-deferred-to-phase-3.md](decisions/installments-deferred-to-phase-3.md)). Individual installment charges already flow through the pipeline in their category's spend (first bullet); only the aggregate `installments` table/view is deferred, alongside the Phase 3 investment-tracking work. The `installment_id` column stays as a nullable forward-compat stub.
 
 ### 5.4 Income and expenses
 - The system tracks full movement (inflows and outflows), not just spending
@@ -210,7 +211,7 @@ financial-planner-agent/
 ## 9. Testing strategy
 
 - **Parser unit tests** — small fixtures (2-3 lines) per bank, deterministic
-- **Categorization golden set** — ~30-40 real/anonymized transactions with known-correct category, used to measure accuracy (critical when switching from a local LLM to Claude/OpenAI)
+- **Categorization golden set** — ~30-40 real/anonymized transactions with known-correct category, used to measure accuracy (critical when switching from a local LLM to Claude/OpenAI). **Not built yet — deferred until a genuinely human-reviewed month exists** (decided 2026-08-30, see [docs/decisions/golden-set-deferred.md](decisions/golden-set-deferred.md)); should be a prerequisite of the Phase 2 "swap to Claude" work.
 - **Graph with mocked LLM** — validates node/edge wiring without depending on Ollama running
 
 ---
@@ -262,11 +263,12 @@ Category and subcategory names are kept in Portuguese here and throughout the co
 | Cartão de crédito/Parcelamentos | (own view — see section 5.3) |
 | Transferência interna | (excluded from spend total — see section 5.2) |
 | Receita | Salário, Freelance/Extra, Reembolso, Outras entradas |
+| Investimento | Added ahead of Phase 3 to reduce CDB/Aplicação miscategorization; full investment tracking remains Phase 3 |
 | Outros | Fallback for low confidence |
 
 *Initial list — subject to expansion as real merchants show up during monthly review.*
 
 **Findings from the real exports that suggest a taxonomy adjustment:**
-- `Aplicação` (e.g. "Cdb Pos Di Liq. Banco Inter") — an investment contribution. Stays under `Outros` for now (investment tracking is Phase 3), but is already a signal that a dedicated `Investimento` category will be worth adding once Phase 3 arrives.
+- `Aplicação` (e.g. "Cdb Pos Di Liq. Banco Inter") — an investment contribution. A dedicated `Investimento` category now exists (added ahead of Phase 3 to reduce this specific CDB/Aplicação miscategorization, which was landing as `Receita`); full investment tracking still arrives in Phase 3.
 - `Deb Cartao + Protegido` (card insurance) — suggested as a new `Seguros` subcategory under `Assinaturas`.
-- `Pagamento efetuado` / "Pagamento Fatura" (credit card bill payment, leaving the checking account) — maps to `Cartão de crédito/Parcelamentos` as the month's aggregate payment; it's made up of the individual installments already categorized separately (see section 5.3). Worth confirming this relationship during `human_review` of the first real month.
+- `Pagamento efetuado` / "Pagamento Fatura" (credit card bill payment, leaving the checking account) — maps to `Cartão de crédito/Parcelamentos` as the month's aggregate payment; it's made up of the individual installments already categorized separately (see section 5.3). This is now encoded as categorizer prompt guidance (descriptions like "Pagamento efetuado" / "Pagamento Fatura" / "PAGAMENTO DE FATURA" are suggested as `Cartão de crédito/Parcelamentos`), still confirmed during `human_review` like every other suggestion.

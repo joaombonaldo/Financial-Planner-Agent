@@ -29,8 +29,11 @@ configuration should never look the same as "zero goals, deliberately."
 ## Running a monthly review via CLI
 
 ```sh
-uv run python -m financial_planner.interface.cli 2026-08 /path/to/financial-planner.db bradesco-statement.csv inter-statement.csv
+uv run financial-planner 2026-08 bradesco-statement.csv inter-statement.csv --db /path/to/financial-planner.db
 ```
+
+`--db` (alias `--db-path`) is optional; it defaults to `$SQLITE_DB_PATH`, or `data/financial-planner.db`
+when that variable is unset.
 
 Imports the statements, categorizes them, and enters a terminal review loop for every transaction with
 `confidence != high` (including transfer candidates). Interrupting the process (Ctrl+C) doesn't lose decisions
