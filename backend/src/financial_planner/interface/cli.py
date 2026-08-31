@@ -64,10 +64,30 @@ def _print_report(report: dict) -> None:
     if report["transfer_total"]:
         print(f"Transferências internas (fora do saldo): R$ {report['transfer_total']:.2f}")
 
+    # Feature 012: shared-expense reimbursements. Values default to 0/absent when the
+    # report was produced without netting (e.g. older graph projection).
+    total_reimbursements = report.get("total_reimbursements", 0.0)
+    if total_reimbursements:
+        print(
+            f"Reembolsos de despesas compartilhadas (abatidos das despesas): "
+            f"R$ {total_reimbursements:.2f}"
+        )
+        unattributed = report.get("unattributed_reimbursements", 0.0)
+        if unattributed:
+            print(f"  não atribuídos a uma categoria: R$ {unattributed:.2f}")
+
     print("\nPor categoria:")
     for entry in report["category_breakdown"]:
         sign = "+" if entry["type"] == "income" else "-"
-        print(f"  {sign} {entry['category']}: R$ {entry['total']:.2f}")
+        reimbursed = entry.get("reimbursed", 0.0)
+        if reimbursed:
+            gross = entry.get("gross", entry["total"])
+            print(
+                f"  {sign} {entry['category']}: R$ {gross:.2f} bruto - "
+                f"R$ {reimbursed:.2f} reembolso = R$ {entry['total']:.2f} líquido"
+            )
+        else:
+            print(f"  {sign} {entry['category']}: R$ {entry['total']:.2f}")
 
     if report["budget_report"]:
         print("\nOrçamento:")

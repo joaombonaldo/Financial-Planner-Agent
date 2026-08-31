@@ -3,6 +3,7 @@ from datetime import date
 from financial_planner.db import repository
 from financial_planner.nodes.budget import check_budget
 from financial_planner.nodes.insights import generate_insights
+from financial_planner.state import TransactionType
 from tests.fixtures.categorization.llm_double import FakeChatModel, RaisingChatModel
 from tests.fixtures.review.builders import seed_categorized_transaction
 
@@ -47,6 +48,67 @@ def test_insights_includes_budget_report_in_context(tmp_path):
     prompt = fake_llm.calls[0]
     assert "Transporte" in prompt
     assert "ACIMA do orçamento" in prompt
+
+
+# --- Feature 012: shared-expense reimbursement netting in the prompt context ------------
+
+
+def test_insights_context_includes_reimbursement_netting(tmp_path):
+    db_path = str(tmp_path / "test.db")
+    conn = repository.connect(db_path)
+    seed_categorized_transaction(
+        conn, "rb-1", "SUPERMERCADO XPTO", category="Alimentação", subcategory="Mercado",
+        confidence="high", amount=800.0,
+    )
+    seed_categorized_transaction(
+        conn, "rb-2", "PIX RECEBIDO IRMAO - divisao mercado", category="Receita",
+        subcategory="Reembolso", confidence="high", amount=400.0,
+        tx_type=TransactionType.INCOME,
+    )
+    conn.close()
+
+    fake_llm = FakeChatModel("mercado saiu por metade.")
+    result = generate_insights(MONTH_REF, db_path, chat_model=fake_llm)
+
+    assert result.summary == "mercado saiu por metade."
+    prompt = fake_llm.calls[0]
+    assert "Alimentação: R$ 800.00 bruto, R$ 400.00 reembolsado, R$ 400.00 líquido" in prompt
+
+
+def test_insights_unattributed_reimbursement_in_context(tmp_path):
+    db_path = str(tmp_path / "test.db")
+    conn = repository.connect(db_path)
+    seed_categorized_transaction(
+        conn, "ru-1", "SUPERMERCADO XPTO", category="Alimentação", subcategory="Mercado",
+        confidence="high", amount=800.0,
+    )
+    seed_categorized_transaction(
+        conn, "ru-2", "PIX RECEBIDO", category="Receita", subcategory="Reembolso",
+        confidence="high", amount=400.0, tx_type=TransactionType.INCOME,
+    )
+    conn.close()
+
+    fake_llm = FakeChatModel("resumo.")
+    generate_insights(MONTH_REF, db_path, chat_model=fake_llm)
+
+    prompt = fake_llm.calls[0]
+    assert "não atribuídos a uma categoria" in prompt
+    assert "R$ 400.00" in prompt
+
+
+def test_insights_no_reimbursement_section_when_none(tmp_path):
+    db_path = str(tmp_path / "test.db")
+    conn = repository.connect(db_path)
+    seed_categorized_transaction(
+        conn, "rn-1", "Mercado A", category="Alimentação", subcategory="Mercado",
+        confidence="high", amount=100.0,
+    )
+    conn.close()
+
+    fake_llm = FakeChatModel("resumo.")
+    generate_insights(MONTH_REF, db_path, chat_model=fake_llm)
+
+    assert "Reembolsos de despesas compartilhadas" not in fake_llm.calls[0]
 
 
 # --- User Story 2: comparison with the previous month -----------------------------------
