@@ -105,6 +105,7 @@ def test_review_payload_lists_valid_subcategories_for_suggested_category(tmp_pat
         "Água",
         "Internet",
         "Gás",
+        "Celular",
     ]
 
 

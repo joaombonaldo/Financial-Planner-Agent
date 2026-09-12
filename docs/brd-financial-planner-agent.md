@@ -308,10 +308,10 @@ Reworked in `011-taxonomy-reorg` to match how the user actually uses their debit
 
 | Category | Subcategories |
 |---|---|
-| Moradia | Aluguel/Financiamento, Condomínio, Energia, Água, Internet, Gás |
+| Moradia | Aluguel/Financiamento, Condomínio, Energia, Água, Internet, Gás, Celular |
 | Alimentação | Mercado, Café/Lanches, Restaurante/Delivery |
-| Transporte | Combustível, Uber/99, Manutenção veículo |
-| Saúde | Psicólogo/Terapia, Farmácia, Plano de saúde, Consultas |
+| Transporte | Combustível, Uber/99, Manutenção veículo, Estacionamento, Seguro Carro |
+| Saúde | Psicólogo/Terapia, Farmácia, Plano de saúde, Consultas, Beleza |
 | Assinaturas | Streaming, Academia, Seguros, Software/SaaS |
 | Lazer | Restaurante/Bar, Passeios/Atividades, Viagem, Eventos/Shows, Hobbies |
 | Compras | Roupas/Calçados, Perfumes/Cosméticos, Eletrônicos/Tecnologia, Casa/Outros |

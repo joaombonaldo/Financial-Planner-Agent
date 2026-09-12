@@ -17,6 +17,7 @@ categories:
     - Água
     - Internet
     - Gás
+    - Celular
   Alimentação:
     - Mercado
     - Café/Lanches
@@ -25,11 +26,14 @@ categories:
     - Combustível
     - Uber/99
     - Manutenção veículo
+    - Estacionamento
+    - Seguro Carro
   Saúde:
     - Psicólogo/Terapia
     - Farmácia
     - Plano de saúde
     - Consultas
+    - Beleza
   Assinaturas:
     - Streaming
     - Academia
