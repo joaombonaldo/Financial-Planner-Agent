@@ -26,6 +26,18 @@ each call — this spec is the concrete design built on top of those decisions.
   how `cli.py` already keeps taxonomy/business logic out of itself).
 - HITL over HTTP via polling, not push (no WebSocket/SSE).
 
+## Architecture: `api.py` never touches `db/repository.py` directly
+
+Every existing interface (`cli.py`) only ever calls `graph.invoke()` /
+`Command(resume=...)` — all DB access is behind a `nodes/*.py` function, never
+called directly by an interface module. `api.py` must hold to the same rule for
+**every** endpoint, including the manual-edit one, which is the one place this
+draft originally got it wrong (see "Manual edit" below for the fix): a new
+`nodes/transactions.py` owns the repository calls for manual edits, and `api.py`
+calls that, not `repository` itself. This keeps `api.py` as thin an interface as
+`cli.py` is, and keeps the dependency direction consistent everywhere:
+`interface -> nodes -> db/repository`, never `interface -> db/repository`.
+
 ## Problem
 
 Today the only way to process a month is `interface/cli.py`'s `run_month()`,
@@ -89,6 +101,27 @@ above. No data is lost; at most the user re-clicks "process this month."
 `processing` in the registry is a no-op (returns the current state, doesn't
 spawn a second background task).
 
+**Required: the background wrapper must never let an exception disappear.**
+Without an explicit catch-all, an unhandled exception in the background
+thread/task kills that task silently — the registry stays at `"processing"`
+forever and the client polls indefinitely with no way to know anything failed.
+The function that wraps every `graph.invoke()` call in the background must:
+
+```python
+try:
+    result = graph.invoke(...)
+    registry[month_ref] = RunState.from_graph_result(result)
+except Exception as exc:  # noqa: BLE001 — deliberate, same pattern as
+                          # nodes/insights.py: this wrapper must never let a
+                          # background task die without updating the registry.
+    logger.exception("run failed for month_ref=%s", month_ref)
+    registry[month_ref] = RunState(status="error", error=str(exc))
+```
+
+with the *full* traceback going to the server log (`logging`, stdlib — no new
+dependency) and only a message reaching the client (see "Security" below for
+why those two need to differ).
+
 ### Endpoints
 
 | Method & path | Purpose |
@@ -140,16 +173,36 @@ separation `cli.py` already maintains today.
 
 ### Manual edit — `PATCH /transactions/{dedup_hash}`
 
-Two independent, mutually exclusive actions per the BRD decision:
+Two independent, mutually exclusive actions per the BRD decision. Both are
+implemented in a **new `nodes/transactions.py`** (not in `api.py` — see
+"Architecture" above), which is what actually calls `db/repository.py`:
+
+```python
+# nodes/transactions.py
+def recategorize(dedup_hash: str, category: str, subcategory: str | None, db_path: str) -> None:
+    """Behaves exactly like a real review answer: confidence=high, then teaches
+    merchant_memory. Raises TransactionNotFoundError if dedup_hash doesn't exist."""
+
+def soft_delete(dedup_hash: str, db_path: str) -> None:
+    """Excluded everywhere by default. No merchant_memory involvement (see BRD)."""
+
+def restore(dedup_hash: str, db_path: str) -> None:
+    """Undo a soft_delete."""
+```
+
+`api.py`'s `PATCH` handler does argument validation + picks which of the three
+to call — it contains no SQL, no direct `repository` import.
 
 ```jsonc
 // Recategorize — behaves exactly like a real review answer.
 {"category": "Alimentação", "subcategory": "Mercado"}
 ```
-Calls `repository.update_transaction_category(conn, dedup_hash, category,
-subcategory, confidence="high")`, then re-runs `nodes.memory.update_memory
-(month_ref, db_path)` for that transaction's month (already idempotent/cheap —
-safe to call for a single correction). This is the "teach the LLM" path.
+`recategorize()` calls `repository.update_transaction_category(conn, dedup_hash,
+category, subcategory, confidence="high")`, then re-runs
+`nodes.memory.update_memory(month_ref, db_path)` for that transaction's month
+(already idempotent/cheap — safe to call for a single correction). This is the
+"teach the LLM" path. (`month_ref` is looked up from the transaction row itself,
+not supplied by the client — the client only knows `dedup_hash`.)
 
 ```jsonc
 // Soft-delete — "this isn't mine, treat it as if it never existed."
@@ -185,6 +238,94 @@ Hard-deleting it means re-uploading the same statement file later (e.g. adding
 a missed bank file to an already-processed month) would silently re-insert the
 "deleted" transaction — the exact resurrection bug this design avoids.
 
+## Security
+
+"Local-only, no auth" (BRD §10) is a real decision, not an excuse to skip the
+rest of this. Concrete requirements:
+
+- **CORS must be an allowlist of exactly the frontend's own origin** (e.g.
+  `http://localhost:5173` in dev), never `allow_origins=["*"]`. This is the
+  actual mitigation for the realistic threat model here: with no auth token,
+  any webpage open in the same browser can otherwise fire requests at
+  `localhost:PORT` (CSRF against a local, unauthenticated API is a known,
+  real exploit class — "no auth" does not mean "not reachable by a browser
+  you didn't intend"). A same-origin-only CORS policy makes the browser itself
+  refuse those cross-origin requests.
+- **Bind uvicorn to `127.0.0.1`, not `0.0.0.0`.** Defense in depth beyond CORS
+  — keeps the API unreachable from other devices on the same network, not just
+  from other browser tabs.
+- **Sanitize uploaded filenames before they reach a filesystem path.**
+  `POST /months/{month_ref}/uploads` must take only `Path(filename).name` (or
+  equivalent) before joining it into `extracts/{month_ref}/...` — an
+  unsanitized filename containing `../` or an absolute path must not be able to
+  write outside that directory.
+- **Upload limits**: a size cap (reject anything absurd — e.g. above ~20MB,
+  well beyond any real statement file) and an extension allowlist (`.csv`,
+  `.pdf` only), enforced before the file is written to disk or handed to a
+  parser. Prevents both accidental resource exhaustion and feeding garbage into
+  `pdfplumber`.
+- **PDF parsing of an untrusted upload is accepted residual risk for this
+  feature**, not solved here: malformed/adversarial PDFs are a known parser
+  attack surface (hangs, decompression bombs). Acceptable for a single-user
+  local tool processing your own bank's PDFs; revisit if uploads are ever
+  possible from anyone other than the one local user.
+- **Client-facing error messages must be sanitized; full details are
+  server-log-only.** A raw Python exception string can contain local file
+  paths or other internals. Every error response uses the standard envelope
+  below with a short, safe message; `logging.exception(...)` on the server
+  carries the real traceback (see the run-state registry's exception-handling
+  requirement above — same principle, applied consistently everywhere, not
+  just in the background-run wrapper).
+
+**Standard error envelope**, used by a global FastAPI exception handler so
+every endpoint fails the same shape:
+
+```jsonc
+{"error": {"code": "not_found", "message": "Transaction not found"}}
+```
+
+## Extensibility and known constraints
+
+Naming these explicitly so they're conscious trade-offs for this feature's
+scope, not gaps discovered later:
+
+- **The in-memory run-state registry only works for a single server process.**
+  If this is ever deployed behind multiple workers (gunicorn `-w N`, serverless,
+  anything that isn't one long-lived local process), the registry would need to
+  move to something shared (Redis, or the same Postgres this project migrates
+  to for Supabase anyway) — not a concern for the local single-process target
+  of this feature, but a hard blocker to flag before any future deployment
+  decision, not something to rediscover then.
+- **No `user_id`/tenant scoping anywhere in the schema.** Correct for a
+  single-user local tool. But it means a future "add auth" feature is not just
+  "add a middleware" — every table and every query gains a scoping dimension.
+  Writing this down now so it's budgeted for later, not a surprise.
+- **No API versioning** (`/v1/...` prefix). Explicit decision to skip for a
+  personal, never-publicly-exposed API — revisit only if this is ever exposed
+  beyond localhost.
+
+## Testing strategy
+
+Same discipline the rest of this codebase already holds itself to (BRD §9): no
+test ever depends on a real Ollama call.
+
+- FastAPI's `TestClient` for every endpoint.
+- The background execution path must be runnable **synchronously** under test
+  (a test-mode toggle, or simply awaiting the same coroutine directly instead of
+  scheduling it) — tests must not depend on real background-thread timing or
+  need to poll-with-sleep to observe a result.
+- Anything that reaches `categorize`/`generate_insights` in a test uses the
+  existing `tests/fixtures/categorization/llm_double.py` (`FakeChatModel`) —
+  exactly like every existing node test does. No new mocking approach.
+- The background-wrapper exception-handling requirement above gets its own
+  test: force a node to raise, assert the registry (or the `GET .../run`
+  response) surfaces `{"status": "error", ...}` rather than hanging.
+- Manual-edit tests live alongside the new `nodes/transactions.py`, following
+  the same pattern as `tests/test_categorize.py`/`tests/test_review.py` —
+  `recategorize` teaches `merchant_memory`, `soft_delete`/`restore` are excluded
+  from/restored to every existing read path (`list_transactions_by_month`,
+  `list_pending_review`, the credit-stream queries, `generate_report`).
+
 ## Out of scope (this feature)
 
 - The React frontend itself — a UI for these endpoints, not designed here.
@@ -201,9 +342,14 @@ a missed bank file to an already-processed month) would silently re-insert the
 - Exact background-execution mechanism: `BackgroundTasks` (simplest, tied to
   request lifecycle) vs. a standalone `asyncio.to_thread` future stored in the
   registry (survives independent polling better). Needs a spike, not a
-  brainstorm-level decision.
+  brainstorm-level decision. Whatever it is, must support running synchronously
+  under test (see "Testing strategy").
 - Whether `POST /months/{month_ref}/uploads` should validate file
   type/bank-detectability before accepting, or defer all of that to `POST
   .../run` (which already surfaces `UnrecognizedBankError` as a run error).
-  Leaning toward the latter — one error-handling path, not two.
-- CORS configuration for local dev (Vite's dev server origin vs. FastAPI's).
+  Leaning toward the latter — one error-handling path, not two. (The
+  size/extension checks in "Security" happen at upload time regardless — this
+  question is only about *bank-detection* validation, not the security limits.)
+- Exact upload size cap value (~20MB suggested — real statement files are
+  KB-to-low-single-digit-MB; needs no more precision than "generous but not
+  unbounded").
