@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# Blocks committing real personal data even if someone force-adds a gitignored
+# path (git add -f) or a new artifact type isn't in .gitignore yet.
+# See ~/.claude/.../memory/never-commit-personal-financial-data.md.
+set -euo pipefail
+
+pattern='(^|/)(data/|extracts/)|\.db($|-shm$|-wal$|-journal$)|\.db\.bak|budget\.local\.yaml$|(^|/)\.env$'
+
+staged=$(git diff --cached --name-only --diff-filter=ACM)
+offenders=$(echo "$staged" | grep -E "$pattern" || true)
+
+if [ -n "$offenders" ]; then
+  echo "BLOCKED: staged file(s) look like real personal/financial data or secrets:" >&2
+  echo "$offenders" | sed 's/^/  /' >&2
+  echo "This repo is public. If this is genuinely safe to commit, use 'git commit --no-verify'." >&2
+  exit 1
+fi
