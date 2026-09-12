@@ -5,6 +5,7 @@ Nodes never import sqlite3 directly — always via this module.
 
 import sqlite3
 from datetime import date as date_cls
+from datetime import datetime
 from pathlib import Path
 
 from financial_planner.categorization.taxonomy import CREDIT_CARD_CATEGORY
@@ -14,7 +15,8 @@ _SCHEMA_PATH = Path(__file__).parent / "schema.sql"
 
 _TRANSACTION_COLUMNS = (
     "dedup_hash, date, description_raw, account, type, amount, month_ref, "
-    "category, subcategory, confidence, installment_id, instrument, fatura_ref"
+    "category, subcategory, confidence, installment_id, instrument, fatura_ref, "
+    "deleted_at"
 )
 
 
@@ -33,6 +35,7 @@ def _row_to_transaction(row: tuple) -> Transaction:
         installment_id,
         instrument,
         fatura_ref,
+        deleted_at,
     ) = row
     return Transaction(
         dedup_hash=dedup_hash,
@@ -48,6 +51,7 @@ def _row_to_transaction(row: tuple) -> Transaction:
         installment_id=installment_id,
         instrument=Instrument(instrument or Instrument.DEBIT.value),
         fatura_ref=fatura_ref,
+        deleted_at=deleted_at,
     )
 
 
@@ -131,6 +135,7 @@ def list_transactions_by_month(
     conn: sqlite3.Connection,
     month_ref: str,
     instrument: Instrument | None = Instrument.DEBIT,
+    include_deleted: bool = False,
 ) -> list[Transaction]:
     """Transactions for a month.
 
@@ -140,37 +145,47 @@ def list_transactions_by_month(
     (see docs/decisions/credit-card-stream.md) and must not leak into the headline
     debit totals. Pass ``instrument=None`` to get every stream, or
     ``Instrument.CREDIT`` for the credit stream.
+
+    Feature 015: soft-deleted rows (``deleted_at`` set) are excluded by default —
+    "not mine" transactions must be invisible to categorize/review/memory/budget/
+    insights/report, the same way credit rows are invisible to the debit-only
+    default. Pass ``include_deleted=True`` only for a UI that needs to show/restore
+    them (see specs/015-fastapi-core-api).
     """
-    if instrument is None:
-        rows = conn.execute(
-            f"SELECT {_TRANSACTION_COLUMNS} FROM transactions "
-            "WHERE month_ref = ? ORDER BY date",
-            (month_ref,),
-        ).fetchall()
-    else:
-        rows = conn.execute(
-            f"SELECT {_TRANSACTION_COLUMNS} FROM transactions "
-            "WHERE month_ref = ? AND instrument = ? ORDER BY date",
-            (month_ref, instrument.value),
-        ).fetchall()
+    clauses = ["month_ref = ?"]
+    params: list = [month_ref]
+    if instrument is not None:
+        clauses.append("instrument = ?")
+        params.append(instrument.value)
+    if not include_deleted:
+        clauses.append("deleted_at IS NULL")
+    rows = conn.execute(
+        f"SELECT {_TRANSACTION_COLUMNS} FROM transactions "
+        f"WHERE {' AND '.join(clauses)} ORDER BY date",
+        params,
+    ).fetchall()
     return [_row_to_transaction(row) for row in rows]
 
 
 def list_credit_transactions_by_month(
-    conn: sqlite3.Connection, month_ref: str
+    conn: sqlite3.Connection, month_ref: str, include_deleted: bool = False
 ) -> list[Transaction]:
     """Credit-card purchases grouped by the month they were *made* (purchase date)."""
-    return list_transactions_by_month(conn, month_ref, instrument=Instrument.CREDIT)
+    return list_transactions_by_month(
+        conn, month_ref, instrument=Instrument.CREDIT, include_deleted=include_deleted
+    )
 
 
 def list_credit_transactions_by_fatura_ref(
     conn: sqlite3.Connection, fatura_ref: str
 ) -> list[Transaction]:
     """Every credit-card purchase that belongs to a given fatura (YYYY-MM of its due
-    date). Used to reconcile the fatura total against the debit payment line."""
+    date). Used to reconcile the fatura total against the debit payment line.
+    Deleted rows are excluded — a soft-deleted purchase shouldn't count toward
+    reconciliation."""
     rows = conn.execute(
         f"SELECT {_TRANSACTION_COLUMNS} FROM transactions "
-        "WHERE fatura_ref = ? AND instrument = ? ORDER BY date",
+        "WHERE fatura_ref = ? AND instrument = ? AND deleted_at IS NULL ORDER BY date",
         (fatura_ref, Instrument.CREDIT.value),
     ).fetchall()
     return [_row_to_transaction(row) for row in rows]
@@ -206,10 +221,36 @@ def list_pending_review(conn: sqlite3.Connection, month_ref: str) -> list[Transa
     confidence != 'high' already covers transfer candidates: the categorization
     feature never assigns confidence='high' to "Transferência interna" (only
     human_review can). See research.md.
+
+    Feature 015: a soft-deleted transaction is never pending review — it's been
+    decided to not exist.
     """
     rows = conn.execute(
         f"SELECT {_TRANSACTION_COLUMNS} FROM transactions "
-        "WHERE month_ref = ? AND confidence != 'high' ORDER BY date",
+        "WHERE month_ref = ? AND confidence != 'high' AND deleted_at IS NULL "
+        "ORDER BY date",
         (month_ref,),
     ).fetchall()
     return [_row_to_transaction(row) for row in rows]
+
+
+def soft_delete_transaction(conn: sqlite3.Connection, dedup_hash: str) -> None:
+    """Mark a transaction excluded everywhere ("not mine") without removing the
+    row — re-ingest idempotency (transaction_exists/dedup_hash) depends on the
+    row still being present, so a real DELETE would let the same statement file
+    silently resurrect it on a future re-upload. See specs/015-fastapi-core-api.
+    """
+    conn.execute(
+        "UPDATE transactions SET deleted_at = ? WHERE dedup_hash = ?",
+        (datetime.now().isoformat(timespec="seconds"), dedup_hash),
+    )
+    conn.commit()
+
+
+def restore_transaction(conn: sqlite3.Connection, dedup_hash: str) -> None:
+    """Undo soft_delete_transaction."""
+    conn.execute(
+        "UPDATE transactions SET deleted_at = NULL WHERE dedup_hash = ?",
+        (dedup_hash,),
+    )
+    conn.commit()

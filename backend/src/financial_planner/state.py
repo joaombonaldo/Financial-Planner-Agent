@@ -60,6 +60,12 @@ class Transaction:
     fatura_ref: str | None = None
     installment_index: int | None = None
     installment_count: int | None = None
+    # Feature 015 (FastAPI core API — manual edit). Soft-delete flag: NULL/None
+    # means active. A real DELETE would break re-ingest idempotency (dedup_hash
+    # -based skip depends on the row still existing) — see specs/015-fastapi-
+    # core-api/spec.md "Schema change required". Excluded from every read path
+    # by default; only an explicit include_deleted=True sees it.
+    deleted_at: str | None = None
 
 
 @dataclass
