@@ -286,6 +286,18 @@ financial-planner-agent/
 - Persistence migration to Supabase
 - FastAPI backend exposing `core/` via an async API (start-run → poll-status → resume-review pattern)
 
+**Architecture decisions (2026-09-12, brainstormed before implementation — see [specs/015-fastapi-core-api/spec.md](../specs/015-fastapi-core-api/spec.md) for the concrete API design):**
+
+- **Local-only, no auth.** FastAPI + React run on the user's own machine, same trust model as the CLI today. Confirms/extends §11's "no auth, even after Supabase" call — it was made assuming local use, and local use is what's actually happening. Revisit if this ever gets deployed somewhere network-reachable.
+- **Sequencing: UI ships first against the existing local SQLite. Supabase migration is a later, separate step** — not bundled with the FastAPI/React work. Lower risk, usable sooner; the persistence swap is designed to be a drop-in (`langgraph-checkpoint-postgres`, same interface) whenever it happens.
+- **LLM swap (Ollama → Claude) deferred to real usage** — not before or during the Phase 2 UI build. The categorization golden set (§9) stays deferred too, until then.
+- **The CLI is not replaced.** FastAPI is a second interface sharing the same `core/` graph and nodes, same as `interface/cli.py` and the planned `interface/api.py` sitting side by side (§7).
+- **HITL over HTTP: polling, not push.** Start a month's run, poll its status (returns the current pending review item if any), submit an answer, poll again. No WebSocket/SSE — a single-user local app reviewing one transaction at a time doesn't need push, and polling is simpler to build/debug.
+- **First UI cut**: upload + review queue, monthly report/dashboard, month history list, manual transaction edit. A budget-goals editor is explicitly deferred past this first cut.
+- **Manual edit is two distinct actions**, not one:
+  - **Recategorize** — behaves exactly like answering a real review item: sets `confidence = high` and re-runs `update_memory` so the correction is remembered for next time.
+  - **Soft-delete** ("this isn't my expense/income, e.g. paid on behalf of someone else and repaid — treat it as if it never existed"). Explicitly **not** fed into `merchant_memory` — this case is usually a one-off, not a recurring merchant pattern, so there's nothing durable to learn. Implemented as a flag, not a real `DELETE`, because dedup-based re-ingest idempotency depends on the row still existing — a hard delete would silently resurrect the transaction if the same statement file is ever re-uploaded. Excluded from every total/report/query by default; recoverable.
+
 ### Phase 3
 - Investment tracking (beyond financial planning)
 
