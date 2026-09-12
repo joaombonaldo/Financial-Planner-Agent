@@ -3,7 +3,7 @@ from datetime import date
 from financial_planner.db import repository
 from financial_planner.graph import build_graph
 from financial_planner.nodes.memory import update_memory
-from financial_planner.state import Bank, Transaction, TransactionType
+from financial_planner.state import Bank, Instrument, Transaction, TransactionType
 from tests.fixtures.review.builders import seed_categorized_transaction
 
 MONTH_REF = "2026-08"
@@ -140,3 +140,25 @@ def test_full_chain_remembers_merchant_across_months(tmp_path):
     conn.close()
 
     assert row == ("Transporte", "Uber/99", "high")
+
+
+# --- Feature 014: credit-card merchants are remembered too -------------------------------
+
+
+def test_memory_remembers_confirmed_credit_card_merchant(tmp_path):
+    db_path = str(tmp_path / "test.db")
+    conn = repository.connect(db_path)
+    seed_categorized_transaction(
+        conn,
+        "hash-credit-1",
+        "Perfumaria X",
+        category="Compras",
+        subcategory="Perfumes/Cosméticos",
+        confidence="high",
+        instrument=Instrument.CREDIT,
+    )
+    conn.close()
+
+    update_memory(MONTH_REF, db_path)
+
+    assert _memory_entry(db_path, "perfumaria x") == ("Compras", "Perfumes/Cosméticos")

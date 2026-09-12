@@ -18,8 +18,9 @@ from financial_planner.graph import build_graph
 
 def _format_payload(payload: dict) -> str:
     tx = payload["transaction"]
+    stream = " [cartão de crédito]" if tx.get("instrument") == "credit" else ""
     lines = [
-        f"\n{tx['date']} | {tx['account']} | R$ {tx['amount']:.2f}",
+        f"\n{tx['date']} | {tx['account']}{stream} | R$ {tx['amount']:.2f}",
         f"  {tx['description_raw']}",
         f"  sugestão: {tx['category']} / {tx['subcategory'] or '-'} ({tx['confidence']})",
     ]
@@ -64,10 +65,47 @@ def _print_report(report: dict) -> None:
     if report["transfer_total"]:
         print(f"Transferências internas (fora do saldo): R$ {report['transfer_total']:.2f}")
 
+    # Feature 012: shared-expense reimbursements. Values default to 0/absent when the
+    # report was produced without netting (e.g. older graph projection).
+    total_reimbursements = report.get("total_reimbursements", 0.0)
+    if total_reimbursements:
+        print(
+            f"Reembolsos de despesas compartilhadas (abatidos das despesas): "
+            f"R$ {total_reimbursements:.2f}"
+        )
+        unattributed = report.get("unattributed_reimbursements", 0.0)
+        if unattributed:
+            print(f"  não atribuídos a uma categoria: R$ {unattributed:.2f}")
+
     print("\nPor categoria:")
     for entry in report["category_breakdown"]:
         sign = "+" if entry["type"] == "income" else "-"
-        print(f"  {sign} {entry['category']}: R$ {entry['total']:.2f}")
+        reimbursed = entry.get("reimbursed", 0.0)
+        if reimbursed:
+            gross = entry.get("gross", entry["total"])
+            print(
+                f"  {sign} {entry['category']}: R$ {gross:.2f} bruto - "
+                f"R$ {reimbursed:.2f} reembolso = R$ {entry['total']:.2f} líquido"
+            )
+        else:
+            print(f"  {sign} {entry['category']}: R$ {entry['total']:.2f}")
+
+    # Feature 014: credit-card stream — informational, not part of the totals above.
+    credit_breakdown = report.get("credit_category_breakdown") or []
+    if credit_breakdown:
+        print(f"\nCompras no cartão de crédito em {report['month_ref']} (cobradas em fatura futura):")
+        for entry in credit_breakdown:
+            sign = "+" if entry["type"] == "income" else "-"
+            print(f"  {sign} {entry['category']}: R$ {entry['total']:.2f}")
+        print(f"  total: R$ {report.get('credit_total', 0.0):.2f}")
+
+    for reconciliation in report.get("fatura_reconciliations") or []:
+        delta = reconciliation["delta"]
+        marker = "OK" if abs(delta) < 0.01 else f"diferença R$ {delta:.2f}"
+        print(
+            f"\nFatura {reconciliation['fatura_ref']}: pago R$ {reconciliation['debit_payment']:.2f} "
+            f"| compras R$ {reconciliation['credit_purchases_total']:.2f} ({marker})"
+        )
 
     if report["budget_report"]:
         print("\nOrçamento:")

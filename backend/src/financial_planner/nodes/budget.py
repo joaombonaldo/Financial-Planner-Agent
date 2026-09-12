@@ -17,6 +17,11 @@ def check_budget(
 
     conn = repository.connect(db_path)
     try:
+        # Feature 014 decision: budget stays debit-only. Card spend is budgeted via
+        # a single `Cartão de crédito` goal (the bill amount), not per-category —
+        # counting credit purchases here too would double-count them against both
+        # their own category's goal and the card goal. See docs/decisions/
+        # credit-card-stream.md and specs/013-credit-card-stream's follow-up §5.
         transactions = repository.list_transactions_by_month(conn, month_ref)
     finally:
         conn.close()

@@ -1,0 +1,26 @@
+VISA SIGNATURE
+Total da fatura Vencimento
+CTC PORTO ALEGRE RS PL3 R$ 700,05 04/09/2026
+TITULAR DE EXEMPLO
+Previsão de fechamento da próxima fatura:23/09/2026
+Limite de compras Limite de saque
+R$ 21.000,00 R$ 4.200,00
+Resumo da fatura
+Saldo anterior......................... R$ 638,06
+(-) Creditos/Pagamentos..... R$ 638,06
+(+)Compras/Debitos............ R$ 700,05
+(=)Total.................................... R$ 700,05
+Baixe o app Bradesco Cartões ou acesse o site
+Numero do Cartão 0000 XXXX XXXX 1234
+Lancamentos
+Data Historico de Lancamentos Cidade US$ R$
+04/08 PAGTO. POR DEB EM C/C 638,06-
+25/08 IOF S/ TRANS INTER REAIS 3,85
+TITULAR DE EXEMPLO Cartão 0000 XXXX XXXX 5678
+30/05 HOTEL VILA MICHEL 03/06 BENTO 498,33
+Total paraTITULAR DE EXEMPLO 498,33
+TITULAR DE EXEMPLO Cartão 0000 XXXX XXXX 9012
+01/08 NittioLtda 01/02 Tubarao 87,87
+20/08 ANTHROPIC* CLAUDE SUB 110,00ANTHROPIC.C 110,00
+Total paraTITULAR DE EXEMPLO 197,87
+Total da fatura em real 700,05

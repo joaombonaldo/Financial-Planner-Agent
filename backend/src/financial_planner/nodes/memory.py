@@ -13,7 +13,10 @@ from financial_planner.db import repository
 def update_memory(month_ref: str, db_path: str) -> None:
     conn = repository.connect(db_path)
     try:
-        transactions = repository.list_transactions_by_month(conn, month_ref)
+        # instrument=None: feature 014 categorizes credit-card purchases too (a
+        # merchant is a merchant regardless of instrument), so their confirmed
+        # categories should be remembered the same way debit merchants' are.
+        transactions = repository.list_transactions_by_month(conn, month_ref, instrument=None)
 
         for transaction in transactions:
             if transaction.confidence != "high":

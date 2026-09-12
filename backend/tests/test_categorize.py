@@ -1,9 +1,9 @@
 from datetime import date
 
-from financial_planner.categorization.taxonomy import load_taxonomy
+from financial_planner.categorization.taxonomy import CREDIT_CARD_CATEGORY, load_taxonomy
 from financial_planner.db import repository
 from financial_planner.nodes.categorize import categorize
-from financial_planner.state import Bank, TransactionType
+from financial_planner.state import Bank, Instrument, TransactionType
 from tests.fixtures.categorization.builders import make_transaction, seed_merchant_memory, seed_transaction
 from tests.fixtures.categorization.llm_double import FakeChatModel
 
@@ -143,11 +143,11 @@ def test_pagamento_fatura_suggested_as_card_payments(tmp_path):
     seed_transaction(conn, make_transaction("hash-fatura", "Pagamento Fatura"))
     conn.close()
 
-    fake_llm = FakeChatModel("Cartão de crédito/Parcelamentos|")
+    fake_llm = FakeChatModel("Cartão de crédito|")
     categorize(MONTH_REF, db_path, chat_model=fake_llm)
 
     assert _category_row(db_path, "hash-fatura") == (
-        "Cartão de crédito/Parcelamentos",
+        "Cartão de crédito",
         None,
         "medium",
     )
@@ -166,7 +166,85 @@ def test_llm_prompt_includes_investimento_and_fatura_guidance(tmp_path):
     assert "CDB" in prompt
     assert "→ Investimento" in prompt
     assert "Pagamento Fatura" in prompt
-    assert "→ Cartão de crédito/Parcelamentos" in prompt
+    assert "→ Cartão de crédito" in prompt
+    assert "→ Cartão de crédito/Parcelamentos" not in prompt
+
+
+def test_llm_prompt_includes_new_taxonomy_guidance_lines(tmp_path):
+    db_path = str(tmp_path / "test.db")
+    conn = repository.connect(db_path)
+    seed_transaction(conn, make_transaction("hash-newguidance", "Qualquer Estabelecimento"))
+    conn.close()
+
+    fake_llm = FakeChatModel("Outros|")
+    categorize(MONTH_REF, db_path, chat_model=fake_llm)
+
+    prompt = fake_llm.calls[0]
+    assert "Lazer/Restaurante/Bar" in prompt
+    assert "Lazer/Passeios/Atividades" in prompt
+    assert "Compras/Perfumes/Cosméticos" in prompt
+    assert "Compras/Eletrônicos/Tecnologia" in prompt
+    assert "Saúde/Psicólogo/Terapia" in prompt
+    assert "Alimentação/Café/Lanches" in prompt
+    assert "Receita/Rendimentos" in prompt
+
+
+# --- Feature 011: reworked taxonomy ----------------------------------------------------
+
+
+def test_compras_and_subcategories_are_valid_taxonomy_entries():
+    taxonomy = load_taxonomy()
+    assert "Compras" in taxonomy.category_names()
+    assert taxonomy.subcategories_for("Compras") == [
+        "Roupas/Calçados",
+        "Perfumes/Cosméticos",
+        "Eletrônicos/Tecnologia",
+        "Casa/Outros",
+    ]
+    for subcategory in taxonomy.subcategories_for("Compras"):
+        assert taxonomy.is_valid("Compras", subcategory)
+
+
+def test_old_taxonomy_literals_are_gone():
+    taxonomy = load_taxonomy()
+    names = taxonomy.category_names()
+    assert "Vestuário" not in names
+    assert "Cartão de crédito/Parcelamentos" not in names
+    assert "Padaria/Café" not in taxonomy.subcategories_for("Alimentação")
+    assert "Café/Lanches" in taxonomy.subcategories_for("Alimentação")
+
+
+def test_psychologist_description_resolves_to_saude_psicologo(tmp_path):
+    db_path = str(tmp_path / "test.db")
+    conn = repository.connect(db_path)
+    seed_transaction(conn, make_transaction("hash-psi", "Sessao Psicologia Clinica"))
+    conn.close()
+
+    fake_llm = FakeChatModel("Saúde|Psicólogo/Terapia")
+    categorize(MONTH_REF, db_path, chat_model=fake_llm)
+
+    assert _category_row(db_path, "hash-psi") == ("Saúde", "Psicólogo/Terapia", "medium")
+
+
+def test_perfume_description_resolves_to_compras_perfumes(tmp_path):
+    db_path = str(tmp_path / "test.db")
+    conn = repository.connect(db_path)
+    seed_transaction(conn, make_transaction("hash-perfume", "O Boticario Perfumaria"))
+    conn.close()
+
+    fake_llm = FakeChatModel("Compras|Perfumes/Cosméticos")
+    categorize(MONTH_REF, db_path, chat_model=fake_llm)
+
+    assert _category_row(db_path, "hash-perfume") == (
+        "Compras",
+        "Perfumes/Cosméticos",
+        "medium",
+    )
+
+
+def test_receita_rendimentos_is_valid(tmp_path):
+    taxonomy = load_taxonomy()
+    assert taxonomy.is_valid("Receita", "Rendimentos")
 
 
 # --- User Story 3: flag transfer candidates -----------------------------------------------
@@ -235,3 +313,121 @@ def test_transfer_pattern_without_mirror_falls_through(tmp_path):
     category, _subcategory, confidence = _category_row(db_path, "hash-lonely-pix")
     assert category != "Transferência interna"
     assert confidence != "high"
+
+
+# --- Feature 014: credit-card purchases are categorized too -------------------------------
+
+
+def test_credit_transaction_categorized_via_memory(tmp_path):
+    db_path = str(tmp_path / "test.db")
+    conn = repository.connect(db_path)
+
+    seed_transaction(
+        conn,
+        make_transaction(
+            "hash-credit-1",
+            "Uber Uber *trip",
+            amount=25.0,
+            instrument=Instrument.CREDIT,
+        ),
+    )
+    seed_merchant_memory(conn, "uber uber *trip", "Transporte", "Uber/99")
+    conn.close()
+
+    categorize(MONTH_REF, db_path)
+
+    assert _category_row(db_path, "hash-credit-1") == ("Transporte", "Uber/99", "high")
+
+
+def test_credit_transaction_categorized_via_llm(tmp_path):
+    db_path = str(tmp_path / "test.db")
+    conn = repository.connect(db_path)
+    seed_transaction(
+        conn,
+        make_transaction("hash-credit-2", "Perfumaria X", amount=90.0, instrument=Instrument.CREDIT),
+    )
+    conn.close()
+
+    fake_llm = FakeChatModel("Compras|Perfumes/Cosméticos")
+    categorize(MONTH_REF, db_path, chat_model=fake_llm)
+
+    category, subcategory, _confidence = _category_row(db_path, "hash-credit-2")
+    assert (category, subcategory) == ("Compras", "Perfumes/Cosméticos")
+    assert len(fake_llm.calls) == 1
+
+
+def test_credit_transaction_never_treated_as_transfer(tmp_path):
+    """A credit-card purchase can never be an internal transfer between the user's
+    own debit/PIX accounts — transfer detection must only see the debit stream."""
+    db_path = str(tmp_path / "test.db")
+    conn = repository.connect(db_path)
+    seed_transaction(
+        conn,
+        make_transaction(
+            "hash-credit-pix-like",
+            "PIX ENVIADO",
+            amount=500.0,
+            instrument=Instrument.CREDIT,
+            transaction_date=date(2026, 8, 10),
+        ),
+    )
+    conn.close()
+
+    fake_llm = FakeChatModel("Outros|")
+    categorize(MONTH_REF, db_path, chat_model=fake_llm)
+
+    category, _subcategory, confidence = _category_row(db_path, "hash-credit-pix-like")
+    assert category != "Transferência interna"
+    assert len(fake_llm.calls) == 1
+
+
+def test_confirming_card_bill_payment_sets_fatura_ref(tmp_path):
+    """Confirming a debit transaction as Cartão de crédito links it to its fatura —
+    fatura_ref becomes the payment line's own month (see db/repository.py)."""
+    db_path = str(tmp_path / "test.db")
+    conn = repository.connect(db_path)
+    seed_transaction(
+        conn, make_transaction("hash-fatura-payment", "Pagamento Fatura", amount=1000.0)
+    )
+    conn.close()
+
+    fake_llm = FakeChatModel(f"{CREDIT_CARD_CATEGORY}|")
+    categorize(MONTH_REF, db_path, chat_model=fake_llm)
+
+    conn = repository.connect(db_path)
+    row = conn.execute(
+        "SELECT category, fatura_ref FROM transactions WHERE dedup_hash = ?",
+        ("hash-fatura-payment",),
+    ).fetchone()
+    conn.close()
+    assert row == (CREDIT_CARD_CATEGORY, MONTH_REF)
+
+
+def test_fatura_ref_not_set_on_credit_rows_by_category_confirmation(tmp_path):
+    """The fatura_ref auto-link only applies to debit payment lines — a credit-stream
+    row's fatura_ref (set at parse time, feature 013) must never be overwritten here."""
+    db_path = str(tmp_path / "test.db")
+    conn = repository.connect(db_path)
+    seed_transaction(
+        conn,
+        make_transaction(
+            "hash-credit-fatura",
+            "Compra qualquer",
+            amount=50.0,
+            instrument=Instrument.CREDIT,
+            fatura_ref="2026-09",
+        ),
+    )
+    conn.close()
+
+    # Even if an (unusual) LLM response named the card-bill category, a credit row
+    # must keep its original parse-time fatura_ref, not get it replaced by month_ref.
+    fake_llm = FakeChatModel(f"{CREDIT_CARD_CATEGORY}|")
+    categorize(MONTH_REF, db_path, chat_model=fake_llm)
+
+    conn = repository.connect(db_path)
+    row = conn.execute(
+        "SELECT fatura_ref FROM transactions WHERE dedup_hash = ?", ("hash-credit-fatura",)
+    ).fetchone()
+    conn.close()
+    assert row == ("2026-09",)

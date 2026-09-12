@@ -7,13 +7,14 @@ import sqlite3
 from datetime import date as date_cls
 from pathlib import Path
 
-from financial_planner.state import Bank, Transaction, TransactionType
+from financial_planner.categorization.taxonomy import CREDIT_CARD_CATEGORY
+from financial_planner.state import Bank, Instrument, Transaction, TransactionType
 
 _SCHEMA_PATH = Path(__file__).parent / "schema.sql"
 
 _TRANSACTION_COLUMNS = (
     "dedup_hash, date, description_raw, account, type, amount, month_ref, "
-    "category, subcategory, confidence, installment_id"
+    "category, subcategory, confidence, installment_id, instrument, fatura_ref"
 )
 
 
@@ -30,6 +31,8 @@ def _row_to_transaction(row: tuple) -> Transaction:
         subcategory,
         confidence,
         installment_id,
+        instrument,
+        fatura_ref,
     ) = row
     return Transaction(
         dedup_hash=dedup_hash,
@@ -43,6 +46,8 @@ def _row_to_transaction(row: tuple) -> Transaction:
         subcategory=subcategory,
         confidence=confidence,
         installment_id=installment_id,
+        instrument=Instrument(instrument or Instrument.DEBIT.value),
+        fatura_ref=fatura_ref,
     )
 
 
@@ -63,8 +68,9 @@ def insert_transaction(conn: sqlite3.Connection, transaction: Transaction) -> No
     conn.execute(
         """
         INSERT INTO transactions
-            (dedup_hash, date, description_raw, account, type, amount, month_ref)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+            (dedup_hash, date, description_raw, account, type, amount, month_ref,
+             instrument, fatura_ref)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             transaction.dedup_hash,
@@ -74,6 +80,8 @@ def insert_transaction(conn: sqlite3.Connection, transaction: Transaction) -> No
             transaction.type.value,
             transaction.amount,
             transaction.month_ref,
+            transaction.instrument.value,
+            transaction.fatura_ref,
         ),
     )
     conn.commit()
@@ -104,13 +112,66 @@ def update_transaction_category(
         """,
         (category, subcategory, confidence, dedup_hash),
     )
+    # Feature 014: confirming a debit transaction as the credit-card-bill category
+    # links it to its fatura — fatura_ref becomes the month this payment line itself
+    # lands in, which is the same value the fatura's credit-card purchases already
+    # carry (see parsers/credit_card_common.py), so the two sides join on fatura_ref.
+    # Credit-stream rows never hit this branch (their fatura_ref is set at parse
+    # time and must not be overwritten here).
+    if category == CREDIT_CARD_CATEGORY:
+        conn.execute(
+            "UPDATE transactions SET fatura_ref = month_ref "
+            "WHERE dedup_hash = ? AND instrument = ?",
+            (dedup_hash, Instrument.DEBIT.value),
+        )
     conn.commit()
 
 
-def list_transactions_by_month(conn: sqlite3.Connection, month_ref: str) -> list[Transaction]:
+def list_transactions_by_month(
+    conn: sqlite3.Connection,
+    month_ref: str,
+    instrument: Instrument | None = Instrument.DEBIT,
+) -> list[Transaction]:
+    """Transactions for a month.
+
+    Defaults to the debit/PIX stream only (``instrument=Instrument.DEBIT``) so the
+    existing report / budget / insights / categorize nodes keep seeing exactly what
+    they saw before feature 013 — credit-card fatura purchases are a separate stream
+    (see docs/decisions/credit-card-stream.md) and must not leak into the headline
+    debit totals. Pass ``instrument=None`` to get every stream, or
+    ``Instrument.CREDIT`` for the credit stream.
+    """
+    if instrument is None:
+        rows = conn.execute(
+            f"SELECT {_TRANSACTION_COLUMNS} FROM transactions "
+            "WHERE month_ref = ? ORDER BY date",
+            (month_ref,),
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            f"SELECT {_TRANSACTION_COLUMNS} FROM transactions "
+            "WHERE month_ref = ? AND instrument = ? ORDER BY date",
+            (month_ref, instrument.value),
+        ).fetchall()
+    return [_row_to_transaction(row) for row in rows]
+
+
+def list_credit_transactions_by_month(
+    conn: sqlite3.Connection, month_ref: str
+) -> list[Transaction]:
+    """Credit-card purchases grouped by the month they were *made* (purchase date)."""
+    return list_transactions_by_month(conn, month_ref, instrument=Instrument.CREDIT)
+
+
+def list_credit_transactions_by_fatura_ref(
+    conn: sqlite3.Connection, fatura_ref: str
+) -> list[Transaction]:
+    """Every credit-card purchase that belongs to a given fatura (YYYY-MM of its due
+    date). Used to reconcile the fatura total against the debit payment line."""
     rows = conn.execute(
-        f"SELECT {_TRANSACTION_COLUMNS} FROM transactions WHERE month_ref = ? ORDER BY date",
-        (month_ref,),
+        f"SELECT {_TRANSACTION_COLUMNS} FROM transactions "
+        "WHERE fatura_ref = ? AND instrument = ? ORDER BY date",
+        (fatura_ref, Instrument.CREDIT.value),
     ).fetchall()
     return [_row_to_transaction(row) for row in rows]
 
