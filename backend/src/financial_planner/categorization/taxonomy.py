@@ -13,6 +13,10 @@ import yaml
 
 FALLBACK_CATEGORY = "Outros"
 TRANSFER_CATEGORY = "Transferência interna"
+# The debit-side line that pays a credit-card fatura (feature 013/014). Confirming
+# a debit transaction with this category is what links it to its fatura via
+# fatura_ref — see db/repository.py:update_transaction_category.
+CREDIT_CARD_CATEGORY = "Cartão de crédito"
 
 _CATEGORIES_PATH = Path(__file__).parent.parent / "config" / "categories.yaml"
 

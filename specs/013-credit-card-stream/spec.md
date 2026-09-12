@@ -6,7 +6,8 @@
 
 **Status**: Implemented up to the report boundary — parsers, detection, schema,
 persistence and tests are done. The debit+credit dual-stream **report** integration
-is a documented follow-up (see the last section).
+was a documented follow-up (see the last section) — completed 2026-09-12 by
+[specs/014-dual-stream-report](../014-dual-stream-report/spec.md).
 
 **Input**: User description: "Ingest the monthly credit-card fatura (PDF) from
 Bradesco and Inter as a stream separate from the debit/PIX extracts: itemized,

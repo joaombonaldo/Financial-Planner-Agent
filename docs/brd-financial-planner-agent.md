@@ -93,7 +93,14 @@ detect_and_parse → categorize → human_review (interrupt) → update_memory
 - Each purchase is itemized, categorized normally (**any** category — category and instrument are independent axes), dated by **purchase date**, and grouped by the **month of purchase** (`month_ref`).
 - Credit-card purchases are **NOT added to that month's headline expense total** — they're informational ("what I put on the card in July"). The amount that hits the debit total is the **fatura payment**: one line in the debit/PIX extract, in the month it's paid, categorized `Cartão de crédito` (per Appendix A), carrying a `fatura_ref` that points at the fatura it settles.
 - `fatura_ref` = `YYYY-MM` of the fatura's **due date** (the month it's paid). Sum of a fatura's credit purchases reconciles against its payment line ± fatura interest / annuity / IOF.
-- The existing debit-oriented nodes (report, budget, insights, categorize) read the **debit stream only** by default, so credit purchases never leak into the headline debit totals. Wiring the dual-stream report is a documented follow-up (spec §"Follow-up: report integration").
+- The existing debit-oriented nodes (report, budget, insights) read the **debit stream only** by default for their headline totals, so credit purchases never leak into them. `categorize`/`human_review`/`update_memory` process **both** streams — a credit-card merchant is categorized (and remembered) the same way a debit one is (see §5.3.2, decided 2026-09-12, [specs/014-dual-stream-report/spec.md](../specs/014-dual-stream-report/spec.md)).
+
+### 5.3.2 Dual-stream report, categorization and reconciliation
+- `categorize` runs transfer detection on the **debit stream only** (a card purchase can never be an internal transfer between the user's own accounts), then runs merchant-memory/LLM categorization on **both** streams. `human_review` and `update_memory` are instrument-agnostic — a confirmed card merchant is remembered in `merchant_memory` exactly like a debit one.
+- Confirming a debit transaction as category `Cartão de crédito` (via memory, LLM, or human review) sets its `fatura_ref` to its **own** `month_ref` — the same value the fatura's credit-card purchases already carry — linking the two sides for reconciliation. This is the only place the debit side writes `fatura_ref` (see `db/repository.py:update_transaction_category`).
+- `generate_report`'s output carries the debit-only headline totals (unchanged) plus, separately: `credit_category_breakdown`/`credit_total` (this month's confirmed card purchases, by purchase date — informational) and `fatura_reconciliations` (per confirmed `Cartão de crédito` payment line: its amount vs. the sum of the fatura's actual purchases, and the delta — expected to be fee-shaped).
+- `generate_insights` receives the same credit-category breakdown as extra context, explicitly labeled as not part of the month's totals above.
+- **`budget_check` stays debit-only** (decided 2026-09-12): a category's goal covers debit spend only; card spend is budgeted via the single `Cartão de crédito` goal (the bill amount). Counting credit purchases by purchase month against a category's goal too was considered and rejected — it would double-count the same money against both that category's goal and the `Cartão de crédito` goal.
 
 ### 5.4 Income and expenses
 - The system tracks full movement (inflows and outflows), not just spending
@@ -102,6 +109,7 @@ detect_and_parse → categorize → human_review (interrupt) → update_memory
 ### 5.5 Budget goals
 - Phase 1: `config/budget.local.yaml` file (gitignored), read via a `get_budget()` function
 - Phase 2: the same function starts reading from Supabase, without changing the rest of the system
+- Debit-only by design where a credit-card stream exists — see §5.3.2.
 
 ### 5.6 Shared expenses / reimbursements
 - The user splits some expenses with a third party (e.g. 50/50 with their brother): a shared expense (a supermarket run under `Alimentação/Mercado`, a house bill under `Moradia`, …) is followed within a few days by an inbound PIX of roughly the other person's share.

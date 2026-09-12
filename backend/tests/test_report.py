@@ -1,8 +1,11 @@
+from datetime import date
+
+from financial_planner.categorization.taxonomy import CREDIT_CARD_CATEGORY
 from financial_planner.db import repository
 from financial_planner.nodes.budget import check_budget
 from financial_planner.nodes.insights import generate_insights
 from financial_planner.nodes.report import generate_report
-from financial_planner.state import TransactionType
+from financial_planner.state import Instrument, TransactionType
 from tests.fixtures.categorization.llm_double import FakeChatModel
 from tests.fixtures.review.builders import seed_categorized_transaction
 
@@ -255,3 +258,181 @@ def test_full_chain_produces_complete_report(tmp_path):
     assert report.insights_summary == "Transporte estourou."
     assert report.insights_error is None
     assert report.transaction_count == 2
+
+
+# --- Feature 014: dual-stream report (credit-card purchases) -----------------------------
+
+
+def test_credit_purchases_excluded_from_headline_totals(tmp_path):
+    db_path = str(tmp_path / "test.db")
+    conn = repository.connect(db_path)
+    seed_categorized_transaction(
+        conn, "hash-debit", "Mercado A", category="Alimentação", confidence="high", amount=300.0
+    )
+    seed_categorized_transaction(
+        conn,
+        "hash-credit",
+        "Restaurante Y",
+        category="Lazer",
+        subcategory="Restaurante/Bar",
+        confidence="high",
+        amount=200.0,
+        instrument=Instrument.CREDIT,
+    )
+    conn.close()
+
+    report = generate_report(MONTH_REF, db_path)
+
+    # Only the debit purchase counts toward the headline total / breakdown.
+    assert report.total_expense == 300.0
+    assert not any(e.category == "Lazer" for e in report.category_breakdown)
+
+
+def test_credit_category_breakdown_reports_this_months_card_purchases(tmp_path):
+    db_path = str(tmp_path / "test.db")
+    conn = repository.connect(db_path)
+    seed_categorized_transaction(
+        conn,
+        "hash-credit-1",
+        "Restaurante Y",
+        category="Lazer",
+        subcategory="Restaurante/Bar",
+        confidence="high",
+        amount=200.0,
+        instrument=Instrument.CREDIT,
+    )
+    seed_categorized_transaction(
+        conn,
+        "hash-credit-2",
+        "Perfumaria Z",
+        category="Compras",
+        subcategory="Perfumes/Cosméticos",
+        confidence="high",
+        amount=90.0,
+        instrument=Instrument.CREDIT,
+    )
+    conn.close()
+
+    report = generate_report(MONTH_REF, db_path)
+
+    assert report.credit_total == 290.0
+    breakdown = {e.category: e.total for e in report.credit_category_breakdown}
+    assert breakdown == {"Lazer": 200.0, "Compras": 90.0}
+
+
+def test_credit_breakdown_skips_unreviewed_purchases(tmp_path):
+    db_path = str(tmp_path / "test.db")
+    conn = repository.connect(db_path)
+    seed_categorized_transaction(
+        conn,
+        "hash-pending",
+        "Loja qualquer",
+        category="Compras",
+        confidence="medium",
+        amount=50.0,
+        instrument=Instrument.CREDIT,
+    )
+    conn.close()
+
+    report = generate_report(MONTH_REF, db_path)
+
+    assert report.credit_category_breakdown == []
+    assert report.credit_total == 0.0
+
+
+def test_fatura_reconciliation_matches_purchases_to_payment_line(tmp_path):
+    db_path = str(tmp_path / "test.db")
+    conn = repository.connect(db_path)
+    # Two card purchases in July, belonging to the fatura due/paid in August.
+    seed_categorized_transaction(
+        conn,
+        "hash-purchase-1",
+        "Restaurante Y",
+        category="Lazer",
+        confidence="high",
+        amount=120.0,
+        instrument=Instrument.CREDIT,
+        fatura_ref="2026-08",
+        transaction_date=date(2026, 7, 15),
+    )
+    seed_categorized_transaction(
+        conn,
+        "hash-purchase-2",
+        "Perfumaria Z",
+        category="Compras",
+        confidence="high",
+        amount=80.0,
+        instrument=Instrument.CREDIT,
+        fatura_ref="2026-08",
+        transaction_date=date(2026, 7, 20),
+    )
+    conn.close()
+
+    # The debit payment line lands in August; confirming it as the card-bill
+    # category auto-links fatura_ref (see db/repository.py).
+    conn = repository.connect(db_path)
+    seed_categorized_transaction(
+        conn,
+        "hash-payment",
+        "Pagamento Fatura",
+        category=CREDIT_CARD_CATEGORY,
+        confidence="high",
+        amount=200.0,
+    )
+    conn.close()
+
+    report = generate_report(MONTH_REF, db_path)
+
+    assert len(report.fatura_reconciliations) == 1
+    reconciliation = report.fatura_reconciliations[0]
+    assert reconciliation.fatura_ref == MONTH_REF
+    assert reconciliation.debit_payment == 200.0
+    assert reconciliation.credit_purchases_total == 200.0
+    assert reconciliation.delta == 0.0
+
+
+def test_fatura_reconciliation_flags_a_delta(tmp_path):
+    db_path = str(tmp_path / "test.db")
+    conn = repository.connect(db_path)
+    seed_categorized_transaction(
+        conn,
+        "hash-purchase",
+        "Restaurante Y",
+        category="Lazer",
+        confidence="high",
+        amount=120.0,
+        instrument=Instrument.CREDIT,
+        fatura_ref="2026-08",
+        transaction_date=date(2026, 7, 15),
+    )
+    conn.close()
+
+    conn = repository.connect(db_path)
+    # Bill is 5.90 higher than the itemized purchases — a plausible fatura fee.
+    seed_categorized_transaction(
+        conn,
+        "hash-payment",
+        "Pagamento Fatura",
+        category=CREDIT_CARD_CATEGORY,
+        confidence="high",
+        amount=125.90,
+    )
+    conn.close()
+
+    report = generate_report(MONTH_REF, db_path)
+
+    reconciliation = report.fatura_reconciliations[0]
+    assert round(reconciliation.delta, 2) == 5.90
+
+
+def test_no_fatura_line_means_no_reconciliation(tmp_path):
+    db_path = str(tmp_path / "test.db")
+    conn = repository.connect(db_path)
+    seed_categorized_transaction(
+        conn, "hash-debit", "Mercado A", category="Alimentação", confidence="high", amount=300.0
+    )
+    conn.close()
+
+    report = generate_report(MONTH_REF, db_path)
+
+    assert report.fatura_reconciliations == []

@@ -23,13 +23,22 @@ _PROMPT_TEMPLATE = """Você é um assistente financeiro pessoal. Escreva um resu
 situação financeira do usuário no mês {month_ref}, com base exclusivamente nos dados abaixo. Não invente números
 nem categorias que não estejam listados.
 
-Gasto por categoria em {month_ref}:
+Gasto por categoria em {month_ref} (débito/PIX):
 {current_spend}
 
 Comparação com a meta de orçamento:
 {budget_report}
-{reimbursement_section}{previous_month_section}
+{reimbursement_section}{credit_section}{previous_month_section}
 Escreva de forma direta, destacando para onde o dinheiro foi e qualquer categoria estourada."""
+
+# Feature 014: card purchases are informational — they don't hit the month's totals
+# above (the fatura payment line does, in the month it's paid) — say so explicitly
+# so the LLM doesn't add them into "total spend" on top of current_spend.
+_CREDIT_TEMPLATE = """
+Compras no cartão de crédito feitas em {month_ref} (NÃO estão somadas no gasto acima — \
+serão cobradas na fatura, em um mês futuro):
+{credit_spend}
+"""
 
 _PREVIOUS_MONTH_TEMPLATE = """
 Gasto por categoria no mês anterior ({previous_month_ref}), para comparação:
@@ -102,6 +111,8 @@ def generate_insights(
         previous_transactions = repository.list_transactions_by_month(
             conn, _previous_month_ref(month_ref)
         )
+        # --- credit stream (feature 014): informational only, see _CREDIT_TEMPLATE.
+        credit_transactions = repository.list_credit_transactions_by_month(conn, month_ref)
     finally:
         conn.close()
 
@@ -133,11 +144,20 @@ def generate_insights(
             previous_spend=_format_spend(previous_spend),
         )
 
+    # --- credit stream (feature 014)
+    credit_spend = compute_category_spend(credit_transactions)
+    credit_section = ""
+    if credit_spend:
+        credit_section = _CREDIT_TEMPLATE.format(
+            month_ref=month_ref, credit_spend=_format_spend(credit_spend)
+        )
+
     prompt = _PROMPT_TEMPLATE.format(
         month_ref=month_ref,
         current_spend=_format_spend(current_spend),
         budget_report=_format_budget_report(budget_report),
         reimbursement_section=reimbursement_section,
+        credit_section=credit_section,
         previous_month_section=previous_month_section,
     )
 

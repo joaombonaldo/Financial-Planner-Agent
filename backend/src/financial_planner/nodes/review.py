@@ -34,6 +34,7 @@ def _build_payload(transaction: Transaction, taxonomy: Taxonomy, error: str | No
             "category": transaction.category,
             "subcategory": transaction.subcategory,
             "confidence": transaction.confidence,
+            "instrument": transaction.instrument.value,
         },
         "is_transfer_candidate": transaction.category == TRANSFER_CATEGORY,
         "suggested_subcategories": taxonomy.subcategories_for(transaction.category),

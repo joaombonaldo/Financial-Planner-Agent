@@ -18,8 +18,9 @@ from financial_planner.graph import build_graph
 
 def _format_payload(payload: dict) -> str:
     tx = payload["transaction"]
+    stream = " [cartão de crédito]" if tx.get("instrument") == "credit" else ""
     lines = [
-        f"\n{tx['date']} | {tx['account']} | R$ {tx['amount']:.2f}",
+        f"\n{tx['date']} | {tx['account']}{stream} | R$ {tx['amount']:.2f}",
         f"  {tx['description_raw']}",
         f"  sugestão: {tx['category']} / {tx['subcategory'] or '-'} ({tx['confidence']})",
     ]
@@ -88,6 +89,23 @@ def _print_report(report: dict) -> None:
             )
         else:
             print(f"  {sign} {entry['category']}: R$ {entry['total']:.2f}")
+
+    # Feature 014: credit-card stream — informational, not part of the totals above.
+    credit_breakdown = report.get("credit_category_breakdown") or []
+    if credit_breakdown:
+        print(f"\nCompras no cartão de crédito em {report['month_ref']} (cobradas em fatura futura):")
+        for entry in credit_breakdown:
+            sign = "+" if entry["type"] == "income" else "-"
+            print(f"  {sign} {entry['category']}: R$ {entry['total']:.2f}")
+        print(f"  total: R$ {report.get('credit_total', 0.0):.2f}")
+
+    for reconciliation in report.get("fatura_reconciliations") or []:
+        delta = reconciliation["delta"]
+        marker = "OK" if abs(delta) < 0.01 else f"diferença R$ {delta:.2f}"
+        print(
+            f"\nFatura {reconciliation['fatura_ref']}: pago R$ {reconciliation['debit_payment']:.2f} "
+            f"| compras R$ {reconciliation['credit_purchases_total']:.2f} ({marker})"
+        )
 
     if report["budget_report"]:
         print("\nOrçamento:")

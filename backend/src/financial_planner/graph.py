@@ -106,6 +106,21 @@ def _report_node(state: GraphState) -> dict:
             "unattributed_reimbursements": getattr(
                 report, "unattributed_reimbursements", 0.0
             ),
+            # Feature 014: credit-card stream — informational, not in the totals above.
+            "credit_category_breakdown": [
+                {"category": e.category, "type": e.type.value, "total": e.total}
+                for e in getattr(report, "credit_category_breakdown", [])
+            ],
+            "credit_total": getattr(report, "credit_total", 0.0),
+            "fatura_reconciliations": [
+                {
+                    "fatura_ref": r.fatura_ref,
+                    "debit_payment": r.debit_payment,
+                    "credit_purchases_total": r.credit_purchases_total,
+                    "delta": r.delta,
+                }
+                for r in getattr(report, "fatura_reconciliations", [])
+            ],
         }
     }
 

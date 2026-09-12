@@ -4,7 +4,7 @@ import sqlite3
 from datetime import date
 
 from financial_planner.db import repository
-from financial_planner.state import Bank, Transaction, TransactionType
+from financial_planner.state import Bank, Instrument, Transaction, TransactionType
 
 
 def seed_categorized_transaction(
@@ -18,6 +18,8 @@ def seed_categorized_transaction(
     account: Bank = Bank.INTER,
     tx_type: TransactionType = TransactionType.EXPENSE,
     transaction_date: date = date(2026, 8, 20),
+    instrument: Instrument = Instrument.DEBIT,
+    fatura_ref: str | None = None,
 ) -> Transaction:
     transaction = Transaction(
         dedup_hash=dedup_hash,
@@ -27,6 +29,8 @@ def seed_categorized_transaction(
         type=tx_type,
         amount=amount,
         month_ref=f"{transaction_date.year:04d}-{transaction_date.month:02d}",
+        instrument=instrument,
+        fatura_ref=fatura_ref,
     )
     repository.insert_transaction(conn, transaction)
     repository.update_transaction_category(conn, dedup_hash, category, subcategory, confidence)

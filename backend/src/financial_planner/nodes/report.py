@@ -7,23 +7,36 @@ Feature 012 (reimbursement netting) — see specs/012-reimbursement-netting:
 the user splits some expenses with a third party (e.g. 50/50 with their brother);
 the inbound repayment is categorized as `Receita / Reembolso`. Such a repayment is
 NOT income — it is netted against the expense categories it offsets. The feature's
-additions here are deliberately localized and marked with `# --- reimbursement`
-comments: another agent (feature C) will later restructure this file into
-debit+credit streams, and these blocks should fold into that work with minimal
-churn. The shared report dataclasses live in state.py (which feature 012 must not
-touch), so the model is extended via thin subclasses below.
+additions here are marked with `# --- reimbursement` comments.
+
+Feature 014 (dual-stream report — see specs/013-credit-card-stream's "Follow-up:
+report integration" and docs/decisions/credit-card-stream.md): credit-card
+purchases are read separately (`instrument=credit`) and reported in their own
+`credit_category_breakdown`/`credit_total`, dated by purchase month. They are
+NEVER folded into `total_income`/`total_expense`/`category_breakdown` — those stay
+debit-only, same default `list_transactions_by_month` always had. What hits the
+debit total is the `Cartão de crédito` payment line; `fatura_reconciliations`
+cross-checks that line's amount against the sum of the fatura's actual purchases
+(see db/repository.py:update_transaction_category for how the two sides link via
+`fatura_ref`). Marked with `# --- credit stream` comments.
 """
 
 from collections.abc import Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from financial_planner.categorization.taxonomy import (
+    CREDIT_CARD_CATEGORY,
     TRANSFER_CATEGORY,
     Taxonomy,
     load_taxonomy,
 )
 from financial_planner.db import repository
-from financial_planner.state import CategoryBreakdownEntry, MonthlyReport, TransactionType
+from financial_planner.state import (
+    CategoryBreakdownEntry,
+    MonthlyReport,
+    Transaction,
+    TransactionType,
+)
 
 # --- reimbursement: a `Receita / Reembolso` inflow is a shared-expense repayment,
 # not earnings. Sum it separately and net it against expenses.
@@ -60,6 +73,34 @@ class ReimbursementReport(MonthlyReport):
 
     total_reimbursements: float = 0.0
     unattributed_reimbursements: float = 0.0
+
+
+@dataclass
+class FaturaReconciliation:
+    """Cross-check between a fatura's itemized credit purchases and the debit
+    payment line that settles it, joined on `fatura_ref` (see module docstring).
+
+    `delta` is expected to be fee-shaped (fatura interest / annuity / IOF) — a large
+    or negative delta suggests a missing/duplicated purchase or a mismatched fatura.
+    """
+
+    fatura_ref: str
+    debit_payment: float
+    credit_purchases_total: float
+    delta: float
+
+
+@dataclass
+class DualStreamReport(ReimbursementReport):
+    """ReimbursementReport + feature 014 credit-card stream fields.
+
+    `credit_category_breakdown`/`credit_total` are informational — purchases made
+    this month (by purchase date), NOT included in total_expense/category_breakdown.
+    """
+
+    credit_category_breakdown: list[CategoryBreakdownEntry] = field(default_factory=list)
+    credit_total: float = 0.0
+    fatura_reconciliations: list[FaturaReconciliation] = field(default_factory=list)
 
 
 @dataclass
@@ -136,16 +177,71 @@ def compute_reimbursements(
     )
 
 
+def _compute_credit_stream(
+    conn, month_ref: str
+) -> tuple[list[CategoryBreakdownEntry], float]:
+    """Feature 014: this month's confirmed card purchases, by category (informational,
+    grouped by purchase month — never folded into the debit headline totals)."""
+    credit_transactions = repository.list_credit_transactions_by_month(conn, month_ref)
+
+    credit_totals: dict[tuple[str, TransactionType], float] = {}
+    credit_total = 0.0
+    for transaction in credit_transactions:
+        if transaction.confidence != "high" or transaction.category is None:
+            continue
+        key = (transaction.category, transaction.type)
+        credit_totals[key] = credit_totals.get(key, 0.0) + transaction.amount
+        if transaction.type == TransactionType.EXPENSE:
+            credit_total += transaction.amount
+
+    credit_category_breakdown = [
+        CategoryBreakdownEntry(category=category, type=tx_type, total=amount)
+        for (category, tx_type), amount in credit_totals.items()
+    ]
+
+    return credit_category_breakdown, credit_total
+
+
+def _compute_fatura_reconciliations(
+    conn, debit_transactions: Iterable[Transaction]
+) -> list[FaturaReconciliation]:
+    """For every confirmed `Cartão de crédito` debit line this month, sum the actual
+    purchases in the fatura it settles (via fatura_ref) and compare."""
+    reconciliations = []
+    for transaction in debit_transactions:
+        if transaction.category != CREDIT_CARD_CATEGORY or not transaction.fatura_ref:
+            continue
+        fatura_purchases = repository.list_credit_transactions_by_fatura_ref(
+            conn, transaction.fatura_ref
+        )
+        purchases_total = sum(
+            t.amount if t.type == TransactionType.EXPENSE else -t.amount
+            for t in fatura_purchases
+        )
+        reconciliations.append(
+            FaturaReconciliation(
+                fatura_ref=transaction.fatura_ref,
+                debit_payment=transaction.amount,
+                credit_purchases_total=purchases_total,
+                delta=transaction.amount - purchases_total,
+            )
+        )
+    return reconciliations
+
+
 def generate_report(
     month_ref: str,
     db_path: str,
     budget_report: list[dict] | None = None,
     insights_summary: str | None = None,
     insights_error: str | None = None,
-) -> ReimbursementReport:
+) -> DualStreamReport:
     conn = repository.connect(db_path)
     try:
         transactions = repository.list_transactions_by_month(conn, month_ref)
+        # --- credit stream
+        credit_category_breakdown, credit_total = _compute_credit_stream(conn, month_ref)
+        fatura_reconciliations = _compute_fatura_reconciliations(conn, transactions)
     finally:
         conn.close()
 
@@ -218,7 +314,7 @@ def generate_report(
 
     total_expense = gross_expense - reimbursements.total
 
-    return ReimbursementReport(
+    return DualStreamReport(
         month_ref=month_ref,
         total_income=total_income,
         total_expense=total_expense,
@@ -231,4 +327,7 @@ def generate_report(
         insights_error=insights_error,
         total_reimbursements=reimbursements.total,
         unattributed_reimbursements=reimbursements.unattributed,
+        credit_category_breakdown=credit_category_breakdown,
+        credit_total=credit_total,
+        fatura_reconciliations=fatura_reconciliations,
     )

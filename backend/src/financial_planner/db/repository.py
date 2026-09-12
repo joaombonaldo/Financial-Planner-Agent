@@ -7,6 +7,7 @@ import sqlite3
 from datetime import date as date_cls
 from pathlib import Path
 
+from financial_planner.categorization.taxonomy import CREDIT_CARD_CATEGORY
 from financial_planner.state import Bank, Instrument, Transaction, TransactionType
 
 _SCHEMA_PATH = Path(__file__).parent / "schema.sql"
@@ -111,6 +112,18 @@ def update_transaction_category(
         """,
         (category, subcategory, confidence, dedup_hash),
     )
+    # Feature 014: confirming a debit transaction as the credit-card-bill category
+    # links it to its fatura — fatura_ref becomes the month this payment line itself
+    # lands in, which is the same value the fatura's credit-card purchases already
+    # carry (see parsers/credit_card_common.py), so the two sides join on fatura_ref.
+    # Credit-stream rows never hit this branch (their fatura_ref is set at parse
+    # time and must not be overwritten here).
+    if category == CREDIT_CARD_CATEGORY:
+        conn.execute(
+            "UPDATE transactions SET fatura_ref = month_ref "
+            "WHERE dedup_hash = ? AND instrument = ?",
+            (dedup_hash, Instrument.DEBIT.value),
+        )
     conn.commit()
 
 
