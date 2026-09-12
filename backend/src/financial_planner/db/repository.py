@@ -227,6 +227,16 @@ def upsert_merchant_category(
     conn.commit()
 
 
+def list_month_refs(conn: sqlite3.Connection) -> list[str]:
+    """Every distinct month_ref with at least one non-deleted transaction, newest
+    first. Backs the month-history list (nodes/queries.py)."""
+    rows = conn.execute(
+        "SELECT DISTINCT month_ref FROM transactions "
+        "WHERE deleted_at IS NULL ORDER BY month_ref DESC"
+    ).fetchall()
+    return [row[0] for row in rows]
+
+
 def list_pending_review(conn: sqlite3.Connection, month_ref: str) -> list[Transaction]:
     """Transactions not yet decided by a human nor by confirmed memory.
 
