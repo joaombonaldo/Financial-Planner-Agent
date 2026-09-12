@@ -68,6 +68,18 @@ def transaction_exists(conn: sqlite3.Connection, dedup_hash: str) -> bool:
     return row is not None
 
 
+def get_transaction(conn: sqlite3.Connection, dedup_hash: str) -> Transaction | None:
+    """A single transaction by its dedup_hash, regardless of deleted_at — callers
+    that need to look one up (e.g. a manual edit, which only receives a
+    dedup_hash from the client) need to see it whether active or already
+    soft-deleted. Returns None if no such transaction exists at all."""
+    row = conn.execute(
+        f"SELECT {_TRANSACTION_COLUMNS} FROM transactions WHERE dedup_hash = ?",
+        (dedup_hash,),
+    ).fetchone()
+    return _row_to_transaction(row) if row else None
+
+
 def insert_transaction(conn: sqlite3.Connection, transaction: Transaction) -> None:
     conn.execute(
         """
