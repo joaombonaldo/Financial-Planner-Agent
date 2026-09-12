@@ -76,11 +76,22 @@ to the interpreter even though it's installed. Symptom: `uv run python -c "impor
 right after `uv sync`, but fails again on the next `uv run` call (it re-syncs and recreates the already-hidden
 `.pth`).
 
-Workaround:
+Workaround (per-run, not durable):
 
 ```sh
 chflags nohidden .venv/lib/python3.12/site-packages/financial_planner.pth
 uv run --no-sync pytest
 ```
 
-`--no-sync` prevents `uv` from regenerating the `.pth` (and the hidden flag) before each run.
+`--no-sync` is meant to prevent `uv` from regenerating the `.pth` (and the hidden flag) before each run, but
+in practice it doesn't always help — the flag has been observed to come back immediately after a `--no-sync`
+run too, seemingly re-applied by something outside `uv`'s own sync step (not confirmed what). Don't rely on
+`chflags` + `--no-sync` alone for anything you don't want to re-run.
+
+**More reliable, especially for a long interactive session (`financial-planner` itself)**: skip the installed
+console script and the `.pth` mechanism entirely by pointing `PYTHONPATH` straight at `src/` and invoking the
+venv's Python directly — this never touches site-packages scanning, so the hidden flag can't affect it:
+
+```sh
+PYTHONPATH=src .venv/bin/python -m financial_planner.interface.cli 2026-08 extrato.csv --db data/financial-planner.db
+```

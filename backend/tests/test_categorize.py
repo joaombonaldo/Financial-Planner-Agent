@@ -431,3 +431,74 @@ def test_fatura_ref_not_set_on_credit_rows_by_category_confirmation(tmp_path):
     ).fetchone()
     conn.close()
     assert row == ("2026-09",)
+
+
+# --- Idempotency: re-running categorize() must not redo already-categorized rows ---------
+# Found 2026-09-12: run_month() always starts a fresh graph.invoke() to resume an
+# interrupted thread, so categorize() runs again on every restart. Without a skip
+# guard this silently re-ran a full LLM pass over every transaction in the month —
+# including already-confirmed ones — on every retry.
+
+
+def test_categorize_skips_already_categorized_debit_transaction(tmp_path):
+    db_path = str(tmp_path / "test.db")
+    conn = repository.connect(db_path)
+    seed_transaction(conn, make_transaction("hash-1", "Uber Uber *trip", amount=25.0))
+    conn.close()
+
+    first_llm = FakeChatModel("Transporte|Uber/99")
+    categorize(MONTH_REF, db_path, chat_model=first_llm)
+    assert len(first_llm.calls) == 1
+    assert _category_row(db_path, "hash-1") == ("Transporte", "Uber/99", "medium")
+
+    second_llm = FakeChatModel("Outros|")
+    categorize(MONTH_REF, db_path, chat_model=second_llm)
+
+    # No second LLM call, and the first run's category is untouched.
+    assert second_llm.calls == []
+    assert _category_row(db_path, "hash-1") == ("Transporte", "Uber/99", "medium")
+
+
+def test_categorize_skips_already_categorized_credit_transaction(tmp_path):
+    db_path = str(tmp_path / "test.db")
+    conn = repository.connect(db_path)
+    seed_transaction(
+        conn,
+        make_transaction("hash-credit-1", "Perfumaria X", amount=90.0, instrument=Instrument.CREDIT),
+    )
+    conn.close()
+
+    first_llm = FakeChatModel("Compras|Perfumes/Cosméticos")
+    categorize(MONTH_REF, db_path, chat_model=first_llm)
+
+    second_llm = FakeChatModel("Outros|")
+    categorize(MONTH_REF, db_path, chat_model=second_llm)
+
+    assert second_llm.calls == []
+    assert _category_row(db_path, "hash-credit-1")[:2] == ("Compras", "Perfumes/Cosméticos")
+
+
+def test_categorize_still_processes_a_new_transaction_added_after_first_pass(tmp_path):
+    """Re-running categorize() must skip what's already done but still pick up a
+    genuinely new transaction (e.g. a file ingested in a later run)."""
+    db_path = str(tmp_path / "test.db")
+    conn = repository.connect(db_path)
+    seed_transaction(conn, make_transaction("hash-1", "Uber Uber *trip", amount=25.0))
+    conn.close()
+    categorize(MONTH_REF, db_path, chat_model=FakeChatModel("Transporte|Uber/99"))
+
+    conn = repository.connect(db_path)
+    seed_transaction(
+        conn,
+        make_transaction(
+            "hash-2", "Novo Restaurante", amount=60.0, transaction_date=date(2026, 8, 22)
+        ),
+    )
+    conn.close()
+
+    second_llm = FakeChatModel("Lazer|Restaurante/Bar")
+    categorize(MONTH_REF, db_path, chat_model=second_llm)
+
+    assert len(second_llm.calls) == 1
+    assert _category_row(db_path, "hash-1") == ("Transporte", "Uber/99", "medium")
+    assert _category_row(db_path, "hash-2") == ("Lazer", "Restaurante/Bar", "medium")
