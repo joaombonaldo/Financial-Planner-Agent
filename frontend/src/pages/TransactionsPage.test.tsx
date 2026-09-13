@@ -135,7 +135,7 @@ describe("TransactionsPage", () => {
     )
   })
 
-  it("soft-deletes a row sending {deleted: true} and restoring sends {deleted: false}", async () => {
+  it("asks for confirmation before soft-deleting, then sends {deleted: true}", async () => {
     const user = userEvent.setup()
     seedTransactions()
     let capturedBody: unknown
@@ -156,8 +156,38 @@ describe("TransactionsPage", () => {
     const row = screen.getByText("PIX ENVIADO IMOBILIARIA CENTRO").closest("tr")!
     await user.click(within(row).getByRole("button", { name: "Excluir" }))
 
+    // Clicking the row action only opens the confirmation -- no request yet.
+    const dialog = await screen.findByRole("alertdialog")
+    expect(capturedBody).toBeUndefined()
+
+    await user.click(within(dialog).getByRole("button", { name: "Excluir" }))
+
     await waitFor(() =>
       expect(capturedBody).toEqual({ category: null, subcategory: null, deleted: true }),
+    )
+  })
+
+  it("restores a soft-deleted row directly, with no confirmation", async () => {
+    const user = userEvent.setup()
+    seedTransactions([...transactionsFixture, deletedTransaction])
+    let capturedBody: unknown
+    server.use(
+      http.patch(url("/transactions/:dedupHash"), async ({ request, params }) => {
+        capturedBody = await request.json()
+        const existing = deletedTransaction.dedup_hash === params.dedupHash ? deletedTransaction : transactionsFixture[0]
+        return HttpResponse.json({ ...existing, deleted_at: null })
+      }),
+    )
+    renderWithProviders(<TransactionsPage />, { route: ROUTE })
+
+    await user.click(screen.getByLabelText("Incluir excluídas"))
+    await screen.findByText("ASSINATURA CANCELADA STREAMING")
+    const row = screen.getByText("ASSINATURA CANCELADA STREAMING").closest("tr")!
+    await user.click(within(row).getByRole("button", { name: "Restaurar" }))
+
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument()
+    await waitFor(() =>
+      expect(capturedBody).toEqual({ category: null, subcategory: null, deleted: false }),
     )
   })
 

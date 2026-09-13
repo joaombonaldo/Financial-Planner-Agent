@@ -17,6 +17,16 @@ import type { TransactionFilters } from "@/api/queries"
 import { useTaxonomy, useTransactions } from "@/api/queries"
 import { usePatchTransaction } from "@/api/mutations"
 import type { Instrument, Transaction } from "@/api/types"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -157,11 +167,25 @@ function RecategorizeDialog({
 
 function TransactionRow({ transaction }: { transaction: Transaction }) {
   const [editing, setEditing] = useState(false)
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
   const patch = usePatchTransaction()
   const isDeleted = transaction.deleted_at !== null
 
-  function handleToggleDeleted() {
-    patch.mutate({ dedupHash: transaction.dedup_hash, deleted: !isDeleted })
+  // Deleting is destructive-looking (even though it's a recoverable soft
+  // delete) and needs a confirmation; restoring undoes it, so it doesn't.
+  function handleDeleteClick() {
+    if (isDeleted) {
+      patch.mutate({ dedupHash: transaction.dedup_hash, deleted: false })
+    } else {
+      setConfirmingDelete(true)
+    }
+  }
+
+  function handleConfirmDelete() {
+    patch.mutate(
+      { dedupHash: transaction.dedup_hash, deleted: true },
+      { onSuccess: () => setConfirmingDelete(false) },
+    )
   }
 
   return (
@@ -211,7 +235,7 @@ function TransactionRow({ transaction }: { transaction: Transaction }) {
             <Button
               size="icon"
               variant={isDeleted ? "outline" : "destructive"}
-              onClick={handleToggleDeleted}
+              onClick={handleDeleteClick}
               disabled={patch.isPending}
               title={isDeleted ? "Restaurar" : "Excluir"}
               aria-label={isDeleted ? "Restaurar" : "Excluir"}
@@ -224,6 +248,27 @@ function TransactionRow({ transaction }: { transaction: Transaction }) {
       {editing ? (
         <RecategorizeDialog transaction={transaction} onClose={() => setEditing(false)} />
       ) : null}
+      <AlertDialog open={confirmingDelete} onOpenChange={setConfirmingDelete}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir esta transação?</AlertDialogTitle>
+            <AlertDialogDescription>
+              "{transaction.description_raw}" ({formatAmount(transaction.amount)}) deixará de
+              contar em relatórios e totais. Isso pode ser desfeito depois com "Restaurar".
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={patch.isPending}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmDelete}
+              disabled={patch.isPending}
+              className="bg-destructive text-white hover:bg-destructive/90"
+            >
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   )
 }
