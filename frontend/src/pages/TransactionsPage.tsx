@@ -9,6 +9,7 @@
  * `transactions`/`report` caches on success — this page never refetches
  * manually.
  */
+import { PencilIcon, RotateCcwIcon, Trash2Icon } from "lucide-react"
 import { useMemo, useState } from "react"
 import { useParams } from "react-router-dom"
 
@@ -166,34 +167,58 @@ function TransactionRow({ transaction }: { transaction: Transaction }) {
   return (
     <>
       <TableRow className={isDeleted ? "text-muted-foreground line-through" : undefined}>
-        <TableCell className="font-mono">{transaction.date}</TableCell>
-        <TableCell>{transaction.description_raw}</TableCell>
+        <TableCell className="whitespace-nowrap font-mono">{transaction.date}</TableCell>
+        <TableCell
+          className="max-w-[220px] truncate"
+          title={transaction.description_raw}
+        >
+          {transaction.description_raw}
+        </TableCell>
         <TableCell className="font-mono">{transaction.account}</TableCell>
-        <TableCell className="text-right font-mono">
+        <TableCell className="text-right font-mono whitespace-nowrap">
           {formatAmount(transaction.amount)}
         </TableCell>
-        <TableCell>
+        <TableCell
+          className="max-w-[180px] truncate"
+          title={
+            transaction.subcategory
+              ? `${transaction.category ?? "—"} / ${transaction.subcategory}`
+              : (transaction.category ?? "—")
+          }
+        >
           {transaction.category ?? "—"}
           {transaction.subcategory ? ` / ${transaction.subcategory}` : ""}
         </TableCell>
-        <TableCell>{transaction.confidence ?? "—"}</TableCell>
-        <TableCell>
+        <TableCell className="whitespace-nowrap">{transaction.confidence ?? "—"}</TableCell>
+        <TableCell className="whitespace-nowrap">
           <Badge variant={transaction.instrument === "credit" ? "secondary" : "outline"}>
             {INSTRUMENT_LABEL[transaction.instrument]}
           </Badge>
         </TableCell>
-        <TableCell className="flex justify-end gap-2 text-right">
-          <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
-            Editar categoria
-          </Button>
-          <Button
-            size="sm"
-            variant={isDeleted ? "outline" : "destructive"}
-            onClick={handleToggleDeleted}
-            disabled={patch.isPending}
-          >
-            {isDeleted ? "Restaurar" : "Excluir"}
-          </Button>
+        {/* Sticky so the actions never require a sideways scroll to reach, even
+            when the columns above don't all fit a narrow viewport. */}
+        <TableCell className="sticky right-0 z-10 bg-background text-right whitespace-nowrap shadow-[-8px_0_8px_-8px_rgba(0,0,0,0.15)]">
+          <div className="flex justify-end gap-1">
+            <Button
+              size="icon"
+              variant="outline"
+              onClick={() => setEditing(true)}
+              title="Editar categoria"
+              aria-label="Editar categoria"
+            >
+              <PencilIcon />
+            </Button>
+            <Button
+              size="icon"
+              variant={isDeleted ? "outline" : "destructive"}
+              onClick={handleToggleDeleted}
+              disabled={patch.isPending}
+              title={isDeleted ? "Restaurar" : "Excluir"}
+              aria-label={isDeleted ? "Restaurar" : "Excluir"}
+            >
+              {isDeleted ? <RotateCcwIcon /> : <Trash2Icon />}
+            </Button>
+          </div>
         </TableCell>
       </TableRow>
       {editing ? (
@@ -296,7 +321,9 @@ export default function TransactionsPage() {
               <TableHead>Categoria</TableHead>
               <TableHead>Confiança</TableHead>
               <TableHead>Instrumento</TableHead>
-              <TableHead className="text-right">Ações</TableHead>
+              <TableHead className="sticky right-0 z-10 bg-background text-right shadow-[-8px_0_8px_-8px_rgba(0,0,0,0.15)]">
+                Ações
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
