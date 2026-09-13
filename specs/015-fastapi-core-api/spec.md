@@ -134,6 +134,7 @@ why those two need to differ).
 | `GET /months/{month_ref}/report` | Recomputes and returns `generate_report()`'s output fresh — **never cached**, since a manual edit to a past month must be reflected immediately. |
 | `GET /months/{month_ref}/transactions` | List transactions for a month. Query params: `instrument?`, `category?`, `include_deleted?` (default false). Backs the manual-edit browsing UI. |
 | `PATCH /transactions/{dedup_hash}` | Manual edit — see below. |
+| `GET /taxonomy` | `{"<category>": ["<subcategory>", ...], ...}` — the full tree (`config/categories.yaml`). Added 2026-09-12 while specifying specs/016-frontend-core: a review item's `suggested_subcategories` only covers the *currently suggested* category, so a "correct to a different category" UI control needs the full tree, which nothing else exposed. Static config, no `db_path` needed. |
 
 ### `GET .../run` response shapes
 

@@ -4,13 +4,27 @@ Why this module exists: specs/015-fastapi-core-api "Architecture" makes it bindi
 that `interface/api.py` never imports `db/repository.py` — the dependency direction
 is `interface -> nodes -> db/repository`, for *every* endpoint, not just the
 manual-edit one. `nodes/transactions.py` owns the manual-edit writes; this module
-owns the equivalent reads (`GET /months`, `GET /months/{month_ref}/transactions`)
-so the interface layer stays as thin as `interface/cli.py` is.
-
+owns the equivalent reads (`GET /months`, `GET /months/{month_ref}/transactions`,
+`GET /taxonomy` — specs/016-frontend-core) so the interface layer stays as thin as
+`interface/cli.py` is, even for a lookup (`get_taxonomy`) that isn't `db/repository.py`
+-backed at all: `api.py` importing `categorization.taxonomy` directly would be the
+same kind of layering shortcut this module exists to avoid.
 """
 
+from financial_planner.categorization.taxonomy import load_taxonomy
 from financial_planner.db import repository
 from financial_planner.state import Instrument, Transaction
+
+
+def get_taxonomy() -> dict[str, list[str]]:
+    """The full category -> subcategories tree (config/categories.yaml).
+
+    A review item's `suggested_subcategories` only covers the *currently
+    suggested* category's subcategories — a UI letting the user correct to a
+    wholly different category needs the full tree, which nothing else exposes
+    over HTTP. No db_path/connection needed: this is static config, not data."""
+    taxonomy = load_taxonomy()
+    return {name: taxonomy.subcategories_for(name) for name in taxonomy.category_names()}
 
 
 def list_month_refs(db_path: str) -> list[str]:

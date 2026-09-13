@@ -216,14 +216,13 @@ Same discipline as the backend (BRD §9, specs/015 "Testing strategy"):
 
 ## Open questions for the planning/tasks pass
 
-- **The full category/subcategory taxonomy isn't exposed by any endpoint
-  yet.** The review item's `suggested_subcategories` only covers the *current
-  suggested category's* subcategories — correcting to a wholly different
-  category needs the full tree (`config/categories.yaml`) somewhere the
-  frontend can read it. Cheapest fix is likely a small new read-only endpoint
-  (`GET /taxonomy` or similar) — that's a (tiny) backend addition this spec
-  surfaces but doesn't itself own; flag before starting the "Correct" picker
-  UI.
+- ~~The full category/subcategory taxonomy isn't exposed by any endpoint.~~
+  **Resolved 2026-09-12**: `GET /taxonomy` added (see specs/015-fastapi-
+  core-api's endpoint table) — `{"<category>": ["<subcategory>", ...], ...}`,
+  reusing the existing `load_taxonomy()`/`nodes/queries.py`. The "correct"
+  picker in the review flow reads this once (it's static for the session,
+  no need to refetch per review item) and combines it with the current
+  item's `suggested_subcategories` for the default/highlighted choice.
 - Exact polling interval tuning (starting guess: 1s while `processing`) —
   needs eyeballing against real Ollama latency once the UI exists, not a
   brainstorm-level decision.

@@ -422,6 +422,13 @@ SettingsDep = Annotated[Settings, Depends(get_settings)]
 
 
 def _register_routes(app: FastAPI) -> None:
+    @app.get("/taxonomy")
+    def taxonomy() -> dict:
+        # Static config, not data — no db_path needed. specs/016-frontend-core:
+        # the review flow's "correct" picker needs the full tree, not just the
+        # current suggestion's suggested_subcategories.
+        return queries.get_taxonomy()
+
     @app.post("/months/{month_ref}/uploads", status_code=201)
     def upload_statements(
         month_ref: MonthRef,

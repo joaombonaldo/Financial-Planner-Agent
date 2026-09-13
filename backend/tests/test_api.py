@@ -404,3 +404,22 @@ def test_cors_allows_only_the_frontend_origin(client):
 def test_cors_never_uses_a_wildcard():
     assert "*" not in api.ALLOWED_ORIGINS
     assert api.ALLOWED_ORIGINS == ["http://localhost:5173"]
+
+
+# --- taxonomy ----------------------------------------------------------------------------
+
+
+def test_taxonomy_returns_the_full_category_tree(client):
+    tree = client.get("/taxonomy").json()
+
+    assert "Alimentação" in tree
+    assert "Mercado" in tree["Alimentação"]
+    # Categories with no subcategories (e.g. transfers, catch-all) still appear,
+    # just with an empty list — the picker needs to know they're valid choices too.
+    assert tree["Transferência interna"] == []
+
+
+def test_taxonomy_needs_no_month_or_db_state(client):
+    # Static config — works even with no month ever processed.
+    response = client.get("/taxonomy")
+    assert response.status_code == 200
