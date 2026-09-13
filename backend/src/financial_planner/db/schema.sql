@@ -16,12 +16,14 @@ CREATE TABLE IF NOT EXISTS transactions (
     confidence TEXT,                      -- filled in by this feature (categorize)
     installment_id INTEGER,               -- future feature: installments
     instrument TEXT NOT NULL DEFAULT 'debit',  -- feature 013: 'debit' | 'credit' (credit = itemized fatura purchase)
-    fatura_ref TEXT                       -- feature 013: YYYY-MM of the fatura this row belongs to (credit rows) or settles (debit payment line, later)
+    fatura_ref TEXT,                      -- feature 013: YYYY-MM of the fatura this row belongs to (credit rows) or settles (debit payment line, later)
+    deleted_at TEXT                       -- feature 015: soft-delete (NULL = active). Never a real DELETE -- see db/repository.py
 );
 
 CREATE INDEX IF NOT EXISTS idx_transactions_dedup_hash ON transactions (dedup_hash);
 CREATE INDEX IF NOT EXISTS idx_transactions_instrument_month ON transactions (instrument, month_ref);
 CREATE INDEX IF NOT EXISTS idx_transactions_fatura_ref ON transactions (fatura_ref);
+CREATE INDEX IF NOT EXISTS idx_transactions_deleted_at ON transactions (deleted_at);
 
 -- Merchant -> category mapping already confirmed in previous runs.
 -- This feature (categorize) only reads it; writing is a future feature's

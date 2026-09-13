@@ -1,0 +1,628 @@
+{
+  "components": {
+    "schemas": {
+      "Body_upload_statements_months__month_ref__uploads_post": {
+        "properties": {
+          "files": {
+            "items": {
+              "contentMediaType": "application/octet-stream",
+              "type": "string"
+            },
+            "title": "Files",
+            "type": "array"
+          }
+        },
+        "required": [
+          "files"
+        ],
+        "title": "Body_upload_statements_months__month_ref__uploads_post",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "Instrument": {
+        "description": "Payment stream a transaction belongs to.\n\n`debit` covers the debit/PIX current-account extracts (features 001+). `credit`\ncovers itemized credit-card purchases parsed from a fatura PDF (feature 013):\na separate stream, dated by purchase date, that does NOT feed the month's\nheadline expense total \u2014 see docs/decisions/credit-card-stream.md.",
+        "enum": [
+          "debit",
+          "credit"
+        ],
+        "title": "Instrument",
+        "type": "string"
+      },
+      "ReviewRequest": {
+        "properties": {
+          "action": {
+            "enum": [
+              "accept",
+              "confirm_transfer",
+              "correct"
+            ],
+            "title": "Action",
+            "type": "string"
+          },
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
+          "subcategory": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subcategory"
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "title": "ReviewRequest",
+        "type": "object"
+      },
+      "RunRequest": {
+        "properties": {
+          "budget_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Budget Path"
+          },
+          "files": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Files",
+            "type": "array"
+          }
+        },
+        "title": "RunRequest",
+        "type": "object"
+      },
+      "TransactionPatch": {
+        "properties": {
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
+          "deleted": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deleted"
+          },
+          "subcategory": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subcategory"
+          }
+        },
+        "title": "TransactionPatch",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "title": "Financial Planner API",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/months": {
+      "get": {
+        "operationId": "list_months_months_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response List Months Months Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Months"
+      }
+    },
+    "/months/{month_ref}/report": {
+      "get": {
+        "operationId": "month_report_months__month_ref__report_get",
+        "parameters": [
+          {
+            "description": "e.g. 2026-08",
+            "in": "path",
+            "name": "month_ref",
+            "required": true,
+            "schema": {
+              "description": "e.g. 2026-08",
+              "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+              "title": "Month Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Month Report Months  Month Ref  Report Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Month Report"
+      }
+    },
+    "/months/{month_ref}/review": {
+      "post": {
+        "operationId": "answer_review_months__month_ref__review_post",
+        "parameters": [
+          {
+            "description": "e.g. 2026-08",
+            "in": "path",
+            "name": "month_ref",
+            "required": true,
+            "schema": {
+              "description": "e.g. 2026-08",
+              "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+              "title": "Month Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Answer Review Months  Month Ref  Review Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Answer Review"
+      }
+    },
+    "/months/{month_ref}/run": {
+      "get": {
+        "operationId": "poll_run_months__month_ref__run_get",
+        "parameters": [
+          {
+            "description": "e.g. 2026-08",
+            "in": "path",
+            "name": "month_ref",
+            "required": true,
+            "schema": {
+              "description": "e.g. 2026-08",
+              "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+              "title": "Month Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Poll Run Months  Month Ref  Run Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Poll Run"
+      },
+      "post": {
+        "operationId": "start_run_months__month_ref__run_post",
+        "parameters": [
+          {
+            "description": "e.g. 2026-08",
+            "in": "path",
+            "name": "month_ref",
+            "required": true,
+            "schema": {
+              "description": "e.g. 2026-08",
+              "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+              "title": "Month Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunRequest",
+                "default": {
+                  "files": []
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Start Run Months  Month Ref  Run Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Start Run"
+      }
+    },
+    "/months/{month_ref}/transactions": {
+      "get": {
+        "operationId": "list_transactions_months__month_ref__transactions_get",
+        "parameters": [
+          {
+            "description": "e.g. 2026-08",
+            "in": "path",
+            "name": "month_ref",
+            "required": true,
+            "schema": {
+              "description": "e.g. 2026-08",
+              "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+              "title": "Month Ref",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "instrument",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Instrument"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Instrument"
+            }
+          },
+          {
+            "in": "query",
+            "name": "category",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Category"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include_deleted",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Include Deleted",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response List Transactions Months  Month Ref  Transactions Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Transactions"
+      }
+    },
+    "/months/{month_ref}/uploads": {
+      "post": {
+        "operationId": "upload_statements_months__month_ref__uploads_post",
+        "parameters": [
+          {
+            "description": "e.g. 2026-08",
+            "in": "path",
+            "name": "month_ref",
+            "required": true,
+            "schema": {
+              "description": "e.g. 2026-08",
+              "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+              "title": "Month Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_statements_months__month_ref__uploads_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Upload Statements Months  Month Ref  Uploads Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Upload Statements"
+      }
+    },
+    "/taxonomy": {
+      "get": {
+        "operationId": "taxonomy_taxonomy_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Taxonomy Taxonomy Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Taxonomy"
+      }
+    },
+    "/transactions/{dedup_hash}": {
+      "patch": {
+        "operationId": "edit_transaction_transactions__dedup_hash__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "dedup_hash",
+            "required": true,
+            "schema": {
+              "title": "Dedup Hash",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransactionPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Edit Transaction Transactions  Dedup Hash  Patch",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Edit Transaction"
+      }
+    }
+  }
+}

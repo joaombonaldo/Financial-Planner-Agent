@@ -286,7 +286,7 @@ financial-planner-agent/
 - Persistence migration to Supabase
 - FastAPI backend exposing `core/` via an async API (start-run → poll-status → resume-review pattern)
 
-**Architecture decisions (2026-09-12, brainstormed before implementation — see [specs/015-fastapi-core-api/spec.md](../specs/015-fastapi-core-api/spec.md) for the concrete API design):**
+**Architecture decisions (2026-09-12, brainstormed before implementation — see [specs/015-fastapi-core-api/spec.md](../specs/015-fastapi-core-api/spec.md) for the concrete API design, implemented and smoke-tested against a real uvicorn server on branch `015-fastapi-core-api`):**
 
 - **Local-only, no auth.** FastAPI + React run on the user's own machine, same trust model as the CLI today. Confirms/extends §11's "no auth, even after Supabase" call — it was made assuming local use, and local use is what's actually happening. Revisit if this ever gets deployed somewhere network-reachable.
 - **Sequencing: UI ships first against the existing local SQLite. Supabase migration is a later, separate step** — not bundled with the FastAPI/React work. Lower risk, usable sooner; the persistence swap is designed to be a drop-in (`langgraph-checkpoint-postgres`, same interface) whenever it happens.
@@ -297,6 +297,16 @@ financial-planner-agent/
 - **Manual edit is two distinct actions**, not one:
   - **Recategorize** — behaves exactly like answering a real review item: sets `confidence = high` and re-runs `update_memory` so the correction is remembered for next time.
   - **Soft-delete** ("this isn't my expense/income, e.g. paid on behalf of someone else and repaid — treat it as if it never existed"). Explicitly **not** fed into `merchant_memory` — this case is usually a one-off, not a recurring merchant pattern, so there's nothing durable to learn. Implemented as a flag, not a real `DELETE`, because dedup-based re-ingest idempotency depends on the row still existing — a hard delete would silently resurrect the transaction if the same statement file is ever re-uploaded. Excluded from every total/report/query by default; recoverable.
+
+**Frontend architecture decisions (2026-09-12, brainstormed before implementation — see [specs/016-frontend-core/spec.md](../specs/016-frontend-core/spec.md) for the concrete design):**
+
+- **Stack**: Vite + React + TypeScript SPA (not Next.js — no server-rendering need for a local single-user app), Tailwind + shadcn/ui, React Router, TanStack Query (its `refetchInterval` maps directly onto the API's polling model), Recharts for the dashboard.
+- **Dev server on `http://localhost:5173`** — not just a convention, it's the exact origin already hardcoded into the API's CORS allowlist (`interface/api.py`). API base URL is an env var (`VITE_API_BASE_URL`, default `http://127.0.0.1:8000`), not hardcoded, so pointing at a different backend later (Supabase-backed, deployed) is a one-line change.
+- **API client is generated from the live OpenAPI schema** (`GET /openapi.json`), never hand-maintained, so frontend/backend can't silently drift the way a hand-written client would.
+- **Review queue is one-at-a-time only**, matching the API exactly (it only ever exposes a single pending item) — no batch/table editing via `PATCH` in this first cut, even though the API happens to allow it (the graph re-evaluates its pending list fresh each cycle, so it would technically work). Deliberately deferred: batching is a secondary path riding on an API not designed around it.
+- **Minimal, data-forward visual style** — tables and stat tiles, charts only where they earn their place. Not a fuller dashboard-style build.
+- **UI chrome is Portuguese**, consistent with the CLI's existing rule (`interface/cli.py`: "this is the app's actual runtime language, since the user runs it in Portuguese") — the domain itself (category names, the LLM's insights summary) is already Portuguese throughout; English UI labels next to Portuguese data would be inconsistent with every other interface this project has.
+- **Same test rigor as the backend**: Vitest + React Testing Library + MSW (Mock Service Worker) intercepting the generated API client in every test — the frontend must never call a real backend (or, transitively, real Ollama) in a test, the same rule `tests/fixtures/categorization/llm_double.py` enforces on the Python side.
 
 ### Phase 3
 - Investment tracking (beyond financial planning)
