@@ -1,8 +1,10 @@
+from datetime import date
+
 import pytest
 
 from financial_planner.db import repository
 from financial_planner.nodes import transactions
-from financial_planner.state import Instrument, TransactionNotFoundError
+from financial_planner.state import Bank, Instrument, TransactionNotFoundError, TransactionType
 from tests.fixtures.categorization.builders import make_transaction, seed_transaction
 from tests.fixtures.review.builders import seed_categorized_transaction
 
@@ -24,6 +26,98 @@ def _memory_count(db_path: str) -> int:
     count = conn.execute("SELECT COUNT(*) FROM merchant_memory").fetchone()[0]
     conn.close()
     return count
+
+
+# --- create ----------------------------------------------------------------------------------
+
+
+def test_create_inserts_a_high_confidence_transaction(tmp_path):
+    db_path = str(tmp_path / "test.db")
+    repository.connect(db_path).close()
+
+    result = transactions.create(
+        date=date(2026, 8, 15),
+        description_raw="Feira livre",
+        account=Bank.INTER,
+        type=TransactionType.EXPENSE,
+        amount=45.0,
+        category="Alimentação",
+        subcategory="Mercado",
+        instrument=Instrument.DEBIT,
+        db_path=db_path,
+    )
+
+    assert result.description_raw == "Feira livre"
+    assert result.amount == 45.0
+    assert result.category == "Alimentação"
+    assert result.subcategory == "Mercado"
+    assert result.confidence == "high"
+    assert result.month_ref == "2026-08"
+    assert result.deleted_at is None
+
+
+def test_create_derives_month_ref_from_the_date(tmp_path):
+    db_path = str(tmp_path / "test.db")
+    repository.connect(db_path).close()
+
+    result = transactions.create(
+        date=date(2026, 3, 1),
+        description_raw="Ajuste",
+        account=Bank.BRADESCO,
+        type=TransactionType.EXPENSE,
+        amount=10.0,
+        category="Outros",
+        subcategory=None,
+        instrument=Instrument.DEBIT,
+        db_path=db_path,
+    )
+
+    assert result.month_ref == "2026-03"
+
+
+def test_create_updates_merchant_memory(tmp_path):
+    db_path = str(tmp_path / "test.db")
+    repository.connect(db_path).close()
+
+    transactions.create(
+        date=date(2026, 8, 15),
+        description_raw="Estacionamento Shopping X",
+        account=Bank.INTER,
+        type=TransactionType.EXPENSE,
+        amount=20.0,
+        category="Transporte",
+        subcategory="Estacionamento",
+        instrument=Instrument.DEBIT,
+        db_path=db_path,
+    )
+
+    assert _memory_entry(db_path, "estacionamento shopping x") == ("Transporte", "Estacionamento")
+
+
+def test_create_generates_a_unique_dedup_hash_each_time(tmp_path):
+    db_path = str(tmp_path / "test.db")
+    repository.connect(db_path).close()
+
+    kwargs = dict(
+        date=date(2026, 8, 15),
+        description_raw="Dinheiro",
+        account=Bank.INTER,
+        type=TransactionType.EXPENSE,
+        amount=5.0,
+        category="Outros",
+        subcategory=None,
+        instrument=Instrument.DEBIT,
+        db_path=db_path,
+    )
+    first = transactions.create(**kwargs)
+    second = transactions.create(**kwargs)
+
+    assert first.dedup_hash != second.dedup_hash
+
+    conn = repository.connect(db_path)
+    count = conn.execute("SELECT COUNT(*) FROM transactions").fetchone()[0]
+    conn.close()
+    assert count == 2
 
 
 # --- recategorize -------------------------------------------------------------------------

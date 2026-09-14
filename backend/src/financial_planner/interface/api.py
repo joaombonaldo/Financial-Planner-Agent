@@ -37,6 +37,7 @@ import logging
 import os
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
+from datetime import date as date_type
 from pathlib import Path as FsPath
 from threading import Lock
 from typing import Annotated, Callable, Literal
@@ -54,10 +55,12 @@ from financial_planner.nodes import queries, transactions as transactions_node
 from financial_planner.nodes.budget import check_budget
 from financial_planner.nodes.report import generate_report
 from financial_planner.state import (
+    Bank,
     BudgetNotConfiguredError,
     Instrument,
     Transaction,
     TransactionNotFoundError,
+    TransactionType,
     UnrecognizedBankError,
 )
 
@@ -238,6 +241,21 @@ class TransactionPatch(BaseModel):
     category: str | None = None
     subcategory: str | None = None
     deleted: bool | None = None
+
+
+class CreateTransactionRequest(BaseModel):
+    """A transaction the bank statement never had — e.g. cash spending. Always
+    lands at confidence='high': a human is directly asserting date/amount/
+    category, there's nothing left to review (nodes/transactions.py:create)."""
+
+    date: date_type
+    description_raw: str = Field(min_length=1)
+    account: Bank
+    type: TransactionType
+    amount: float = Field(gt=0)
+    category: str = Field(min_length=1)
+    subcategory: str | None = None
+    instrument: Instrument = Instrument.DEBIT
 
 
 # --- serialization ----------------------------------------------------------------
@@ -551,6 +569,27 @@ def _register_routes(app: FastAPI) -> None:
             include_deleted=include_deleted,
         )
         return [_serialize_transaction(t) for t in found]
+
+    @app.post("/transactions", status_code=201)
+    def create_transaction(
+        settings: SettingsDep,
+        body: Annotated[CreateTransactionRequest, Body()],
+    ) -> dict:
+        # month_ref isn't a path param here (unlike every other transaction
+        # endpoint) -- it's derived from the date the caller supplies, same as
+        # ingest. No repository import, same rule as every other handler.
+        created = transactions_node.create(
+            date=body.date,
+            description_raw=body.description_raw,
+            account=body.account,
+            type=body.type,
+            amount=body.amount,
+            category=body.category,
+            subcategory=body.subcategory,
+            instrument=body.instrument,
+            db_path=settings.db_path,
+        )
+        return _serialize_transaction(created)
 
     @app.patch("/transactions/{dedup_hash}")
     def edit_transaction(

@@ -317,6 +317,85 @@ def test_list_transactions_include_deleted(client, settings):
     assert with_deleted[0]["deleted_at"] is not None
 
 
+# --- manual create --------------------------------------------------------------------
+
+
+def test_create_transaction(client):
+    response = client.post(
+        "/transactions",
+        json={
+            "date": "2026-08-15",
+            "description_raw": "Feira livre",
+            "account": "inter",
+            "type": "expense",
+            "amount": 45.0,
+            "category": "Alimentação",
+            "subcategory": "Mercado",
+            "instrument": "debit",
+        },
+    )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["description_raw"] == "Feira livre"
+    assert body["month_ref"] == "2026-08"
+    assert body["confidence"] == "high"
+    assert body["dedup_hash"]
+
+
+def test_created_transaction_appears_in_its_derived_month(client):
+    client.post(
+        "/transactions",
+        json={
+            "date": "2026-03-01",
+            "description_raw": "Ajuste",
+            "account": "bradesco",
+            "type": "expense",
+            "amount": 10.0,
+            "category": "Outros",
+            "instrument": "debit",
+        },
+    )
+
+    listed = client.get("/months/2026-03/transactions").json()
+    assert [row["description_raw"] for row in listed] == ["Ajuste"]
+
+
+def test_create_transaction_rejects_a_non_positive_amount(client):
+    response = client.post(
+        "/transactions",
+        json={
+            "date": "2026-08-15",
+            "description_raw": "Feira livre",
+            "account": "inter",
+            "type": "expense",
+            "amount": 0,
+            "category": "Alimentação",
+            "instrument": "debit",
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "validation_error"
+
+
+def test_create_transaction_rejects_an_empty_description(client):
+    response = client.post(
+        "/transactions",
+        json={
+            "date": "2026-08-15",
+            "description_raw": "",
+            "account": "inter",
+            "type": "expense",
+            "amount": 10.0,
+            "category": "Outros",
+            "instrument": "debit",
+        },
+    )
+
+    assert response.status_code == 422
+
+
 # --- manual edit ---------------------------------------------------------------------
 
 

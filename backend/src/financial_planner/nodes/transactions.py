@@ -6,9 +6,62 @@ directly, the same way interface/cli.py never imports db/repository.py itself (s
 specs/015-fastapi-core-api "Architecture").
 """
 
+import secrets
+from datetime import date as date_cls
+
 from financial_planner.db import repository
 from financial_planner.nodes.memory import update_memory
-from financial_planner.state import Transaction, TransactionNotFoundError
+from financial_planner.state import Bank, Instrument, Transaction, TransactionNotFoundError, TransactionType
+
+
+def create(
+    *,
+    date: date_cls,
+    description_raw: str,
+    account: Bank,
+    type: TransactionType,
+    amount: float,
+    category: str,
+    subcategory: str | None,
+    instrument: Instrument,
+    db_path: str,
+) -> Transaction:
+    """A transaction entered by hand (feature: manual add) — something the bank
+    statement never had, e.g. cash spending or an adjustment. Not tied to any
+    parser, so it needs no dedup discriminator against a re-import; the hash only
+    has to be unique. Goes straight to confidence='high' (a human is directly
+    asserting the category, same as recategorize) and teaches merchant_memory the
+    same way.
+    """
+    month_ref = f"{date.year:04d}-{date.month:02d}"
+    dedup_hash = f"manual-{secrets.token_hex(16)}"
+
+    conn = repository.connect(db_path)
+    try:
+        repository.insert_transaction(
+            conn,
+            Transaction(
+                dedup_hash=dedup_hash,
+                date=date,
+                description_raw=description_raw,
+                account=account,
+                type=type,
+                amount=amount,
+                month_ref=month_ref,
+                instrument=instrument,
+            ),
+        )
+        repository.update_transaction_category(conn, dedup_hash, category, subcategory, "high")
+    finally:
+        conn.close()
+
+    update_memory(month_ref, db_path)
+
+    conn = repository.connect(db_path)
+    try:
+        return repository.get_transaction(conn, dedup_hash)
+    finally:
+        conn.close()
 
 
 def recategorize(dedup_hash: str, category: str, subcategory: str | None, db_path: str) -> Transaction:
