@@ -48,7 +48,7 @@ def _memory_node(state: GraphState) -> dict:
 
 
 def _budget_node(state: GraphState) -> dict:
-    comparisons = check_budget(state["month_ref"], state["db_path"], state.get("budget_path"))
+    comparisons = check_budget(state["month_ref"], state["db_path"])
     return {
         "budget_report": [
             {

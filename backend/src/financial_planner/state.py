@@ -97,10 +97,6 @@ class CategoryComparison:
     status: BudgetStatus
 
 
-class BudgetNotConfiguredError(Exception):
-    """Raised when no local budget configuration file exists."""
-
-
 class TransactionNotFoundError(Exception):
     """Raised when a dedup_hash doesn't match any transaction."""
 

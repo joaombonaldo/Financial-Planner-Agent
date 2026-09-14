@@ -252,6 +252,54 @@ def test_a_failing_run_surfaces_an_error_instead_of_hanging(client, monkeypatch,
 # --- months / report / transactions -------------------------------------------------
 
 
+# --- budget goals ----------------------------------------------------------------------
+
+
+def test_default_budget_starts_empty(client):
+    assert client.get("/budget").json() == {}
+
+
+def test_put_default_budget_replaces_the_whole_set(client):
+    first = client.put("/budget", json={"goals": {"Moradia": 1500.0, "Lazer": 300.0}})
+    assert first.json() == {"Moradia": 1500.0, "Lazer": 300.0}
+
+    # A second PUT replaces, it doesn't merge -- "Lazer" disappears.
+    second = client.put("/budget", json={"goals": {"Moradia": 1600.0}})
+    assert second.json() == {"Moradia": 1600.0}
+    assert client.get("/budget").json() == {"Moradia": 1600.0}
+
+
+def test_put_default_budget_rejects_a_negative_goal(client):
+    response = client.put("/budget", json={"goals": {"Moradia": -1.0}})
+    assert response.status_code == 422
+
+
+def test_month_budget_overrides_the_default(client):
+    client.put("/budget", json={"goals": {"Lazer": 300.0, "Transporte": 100.0}})
+    client.put(f"/months/{MONTH_REF}/budget", json={"goals": {"Lazer": 800.0}})
+
+    month_budget = client.get(f"/months/{MONTH_REF}/budget").json()
+    assert month_budget["overrides"] == {"Lazer": 800.0}
+    assert month_budget["effective"] == {"Lazer": 800.0, "Transporte": 100.0}
+
+    # A different, unrelated month never sees this month's override.
+    other = client.get("/months/2026-07/budget").json()
+    assert other["overrides"] == {}
+    assert other["effective"] == {"Lazer": 300.0, "Transporte": 100.0}
+
+
+def test_month_budget_feeds_into_the_report(client, settings):
+    client.put("/budget", json={"goals": {"Alimentação": 500.0}})
+    client.put(f"/months/{MONTH_REF}/budget", json={"goals": {"Alimentação": 900.0}})
+    _seed(settings, "hash-1", "Supermercado ABC", amount=100.0)
+    _confirm(settings, "hash-1", "Alimentação", "Mercado")
+
+    report = client.get(f"/months/{MONTH_REF}/report").json()
+    entry = next(e for e in report["budget_report"] if e["category"] == "Alimentação")
+
+    assert entry["goal"] == 900.0
+
+
 def test_list_months_is_derived_from_the_transactions(client, settings):
     _seed(settings, "hash-1", "Supermercado ABC")
     _confirm(settings, "hash-1", "Alimentação", "Mercado")

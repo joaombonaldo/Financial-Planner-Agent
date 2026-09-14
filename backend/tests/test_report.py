@@ -196,12 +196,10 @@ def test_report_carries_budget_and_insights_through_unmodified(tmp_path):
 # --- Smoke test: budget_check -> generate_insights -> generate_report, chained -----------
 
 
-def _write_budget(tmp_path, goals: dict) -> str:
-    import yaml
-
-    path = tmp_path / "budget.local.yaml"
-    path.write_text(yaml.dump(goals), encoding="utf-8")
-    return str(path)
+def _seed_budget(db_path: str, goals: dict) -> None:
+    conn = repository.connect(db_path)
+    repository.replace_budget_goals(conn, repository.DEFAULT_BUDGET_SCOPE, goals)
+    conn.close()
 
 
 def test_full_chain_produces_complete_report(tmp_path):
@@ -210,7 +208,7 @@ def test_full_chain_produces_complete_report(tmp_path):
     needs the LLM and GraphState has no injection point for it) confirms the three
     final nodes' outputs are shape-compatible end to end."""
     db_path = str(tmp_path / "test.db")
-    budget_path = _write_budget(tmp_path, {"Transporte": 100.0})
+    _seed_budget(db_path, {"Transporte": 100.0})
 
     conn = repository.connect(db_path)
     seed_categorized_transaction(
@@ -227,7 +225,7 @@ def test_full_chain_produces_complete_report(tmp_path):
     )
     conn.close()
 
-    comparisons = check_budget(MONTH_REF, db_path, budget_path)
+    comparisons = check_budget(MONTH_REF, db_path)
     budget_report = [
         {
             "category": c.category,

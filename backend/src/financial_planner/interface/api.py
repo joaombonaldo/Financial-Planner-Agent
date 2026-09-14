@@ -47,16 +47,14 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from langgraph.types import Command
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from financial_planner.graph import build_graph
-from financial_planner.nodes import queries, transactions as transactions_node
-from financial_planner.nodes.budget import check_budget
+from financial_planner.nodes import budget as budget_node, queries, transactions as transactions_node
 from financial_planner.nodes.report import generate_report
 from financial_planner.state import (
     Bank,
-    BudgetNotConfiguredError,
     Instrument,
     Transaction,
     TransactionNotFoundError,
@@ -160,7 +158,6 @@ def reset_run_registry() -> None:
 # real traceback only ever goes to the server log.
 _SAFE_MESSAGES: dict[type[Exception], str] = {
     UnrecognizedBankError: "One of the uploaded files does not match any supported bank format.",
-    BudgetNotConfiguredError: "No budget configuration is available.",
     TransactionNotFoundError: "Transaction not found",
 }
 
@@ -228,7 +225,6 @@ def _graph_config(month_ref: str) -> dict:
 
 class RunRequest(BaseModel):
     files: list[str] = Field(default_factory=list)
-    budget_path: str | None = None
 
 
 class ReviewRequest(BaseModel):
@@ -256,6 +252,20 @@ class CreateTransactionRequest(BaseModel):
     category: str = Field(min_length=1)
     subcategory: str | None = None
     instrument: Instrument = Instrument.DEBIT
+
+
+class BudgetGoalsRequest(BaseModel):
+    """Full replace of one budget scope (the global default, or one month's
+    overrides) — a settings page naturally edits the whole set and saves once."""
+
+    goals: dict[str, float] = Field(default_factory=dict)
+
+    @field_validator("goals")
+    @classmethod
+    def _goals_are_non_negative(cls, goals: dict[str, float]) -> dict[str, float]:
+        if any(goal < 0 for goal in goals.values()):
+            raise ValueError("Budget goals must not be negative.")
+        return goals
 
 
 # --- serialization ----------------------------------------------------------------
@@ -447,6 +457,28 @@ def _register_routes(app: FastAPI) -> None:
         # current suggestion's suggested_subcategories.
         return queries.get_taxonomy()
 
+    @app.get("/budget")
+    def get_default_budget(settings: SettingsDep) -> dict:
+        return budget_node.get_default_goals(settings.db_path)
+
+    @app.put("/budget")
+    def put_default_budget(settings: SettingsDep, body: Annotated[BudgetGoalsRequest, Body()]) -> dict:
+        return budget_node.set_default_goals(body.goals, settings.db_path)
+
+    @app.get("/months/{month_ref}/budget")
+    def get_month_budget(month_ref: MonthRef, settings: SettingsDep) -> dict:
+        overrides, effective = budget_node.get_month_goals(month_ref, settings.db_path)
+        return {"overrides": overrides, "effective": effective}
+
+    @app.put("/months/{month_ref}/budget")
+    def put_month_budget(
+        month_ref: MonthRef,
+        settings: SettingsDep,
+        body: Annotated[BudgetGoalsRequest, Body()],
+    ) -> dict:
+        overrides, effective = budget_node.set_month_goals(month_ref, body.goals, settings.db_path)
+        return {"overrides": overrides, "effective": effective}
+
     @app.post("/months/{month_ref}/uploads", status_code=201)
     def upload_statements(
         month_ref: MonthRef,
@@ -488,8 +520,6 @@ def _register_routes(app: FastAPI) -> None:
             "month_ref": month_ref,
             "db_path": db_path,
         }
-        if body.budget_path:
-            graph_input["budget_path"] = body.budget_path
 
         def invoke() -> dict:
             return build_graph(db_path).invoke(graph_input, config=_graph_config(month_ref))
@@ -535,20 +565,17 @@ def _register_routes(app: FastAPI) -> None:
         # up immediately. Budget goals are cheap and deterministic, so they are
         # recomputed too; insights are not — they need the LLM, and the month's
         # generated summary belongs to the run that produced it.
-        try:
-            comparisons = check_budget(month_ref, settings.db_path)
-            budget_report = [
-                {
-                    "category": c.category,
-                    "goal": c.goal,
-                    "actual_spend": c.actual_spend,
-                    "difference": c.difference,
-                    "status": c.status.value,
-                }
-                for c in comparisons
-            ]
-        except BudgetNotConfiguredError:
-            budget_report = []
+        comparisons = budget_node.check_budget(month_ref, settings.db_path)
+        budget_report = [
+            {
+                "category": c.category,
+                "goal": c.goal,
+                "actual_spend": c.actual_spend,
+                "difference": c.difference,
+                "status": c.status.value,
+            }
+            for c in comparisons
+        ]
 
         report = generate_report(month_ref, settings.db_path, budget_report=budget_report)
         return _serialize_report(report)

@@ -276,3 +276,41 @@ def restore_transaction(conn: sqlite3.Connection, dedup_hash: str) -> None:
         (dedup_hash,),
     )
     conn.commit()
+
+
+# --- budget goals (feature: budget UI) ---------------------------------------------
+
+DEFAULT_BUDGET_SCOPE = "__default__"
+
+
+def list_budget_goals(conn: sqlite3.Connection, month_ref: str) -> dict[str, float]:
+    """Raw goals for exactly this scope — `DEFAULT_BUDGET_SCOPE` for the global
+    default, or a real `month_ref` for that month's overrides only (not merged
+    with the default; see `get_effective_budget` for the merged view)."""
+    rows = conn.execute(
+        "SELECT category, goal FROM budget_goals WHERE month_ref = ?", (month_ref,)
+    ).fetchall()
+    return {category: goal for category, goal in rows}
+
+
+def replace_budget_goals(conn: sqlite3.Connection, month_ref: str, goals: dict[str, float]) -> None:
+    """Full replace for one scope: whatever was there for `month_ref` before this
+    call is gone, replaced with exactly `goals`. A settings page naturally edits
+    the whole set and saves once — this avoids per-category diffing on both ends."""
+    conn.execute("DELETE FROM budget_goals WHERE month_ref = ?", (month_ref,))
+    conn.executemany(
+        "INSERT INTO budget_goals (month_ref, category, goal) VALUES (?, ?, ?)",
+        [(month_ref, category, goal) for category, goal in goals.items()],
+    )
+    conn.commit()
+
+
+def get_effective_budget(conn: sqlite3.Connection, month_ref: str) -> dict[str, float]:
+    """The default goals, overlaid with `month_ref`'s own overrides for whichever
+    categories it actually sets — this is what `check_budget` compares spend
+    against. An empty result (nothing configured at all) is a valid, unremarkable
+    outcome, not an error: `check_budget` just produces no comparisons."""
+    effective = list_budget_goals(conn, DEFAULT_BUDGET_SCOPE)
+    if month_ref != DEFAULT_BUDGET_SCOPE:
+        effective.update(list_budget_goals(conn, month_ref))
+    return effective

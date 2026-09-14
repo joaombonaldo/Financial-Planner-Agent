@@ -112,12 +112,9 @@ def test_full_chain_remembers_merchant_across_months(tmp_path):
             month_ref="2026-09",
         ),
     )
-    conn.close()
-
-    import yaml
-
-    budget_path = tmp_path / "budget.local.yaml"
-    budget_path.write_text(yaml.dump({"Transporte": 100.0}), encoding="utf-8")
+    budget_conn = repository.connect(db_path)
+    repository.replace_budget_goals(budget_conn, repository.DEFAULT_BUDGET_SCOPE, {"Transporte": 100.0})
+    budget_conn.close()
 
     graph = build_graph(db_path)
     result = graph.invoke(
@@ -125,7 +122,6 @@ def test_full_chain_remembers_merchant_across_months(tmp_path):
             "source_files": [],
             "month_ref": "2026-09",
             "db_path": db_path,
-            "budget_path": str(budget_path),
         },
         config={"configurable": {"thread_id": "2026-09"}},
     )

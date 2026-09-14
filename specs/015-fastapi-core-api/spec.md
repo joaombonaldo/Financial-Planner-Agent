@@ -127,7 +127,7 @@ why those two need to differ).
 | Method & path | Purpose |
 |---|---|
 | `POST /months/{month_ref}/uploads` | Multipart upload of one or more statement files (CSV/PDF). Saves to `extracts/{month_ref}/` server-side (local disk — no object storage needed pre-Supabase). Returns the saved file paths. |
-| `POST /months/{month_ref}/run` | Start/resume processing. Body: `{"files": [<paths from upload>], "budget_path"?: string}`. Spawns the graph call in the background. Returns `202` + `{"status": "processing"}` immediately. Idempotent/safe to repeat (see above). |
+| `POST /months/{month_ref}/run` | Start/resume processing. Body: `{"files": [<paths from upload>]}`. Spawns the graph call in the background. Returns `202` + `{"status": "processing"}` immediately. Idempotent/safe to repeat (see above). Goals live in the `budget_goals` table now, not a per-run file — see `GET/PUT /budget` below (changed 2026-09-14, replacing the earlier `"budget_path"?: string` field). |
 | `GET /months/{month_ref}/run` | Poll status. Returns one of the four `RunState` shapes below, or `{"status": "not_started"}`. |
 | `POST /months/{month_ref}/review` | Answer the current pending item. Body is structured (see below), translated to the CLI's string protocol inside `api.py` — `nodes/review.py` is untouched. Returns `202` immediately; poll `GET .../run` for the next item. |
 | `GET /months` | `[{"month_ref": str, "transaction_count": int, "has_pending_review": bool}, ...]` — derived from `SELECT DISTINCT month_ref` + `list_pending_review` per month. Backs the month-history list. |
@@ -136,6 +136,10 @@ why those two need to differ).
 | `PATCH /transactions/{dedup_hash}` | Manual edit — see below. |
 | `POST /transactions` | Manually add a transaction the bank statement never had (e.g. cash spending). Added 2026-09-14. Body: `{date, description_raw, account, type, amount, category, subcategory?, instrument?}`. `month_ref` is derived from `date`, not supplied — same as ingest. Goes straight to `confidence='high'` and teaches `merchant_memory`, same as `PATCH`'s recategorize path (`nodes/transactions.py:create`). No repository access from `api.py`, same rule as every other handler. |
 | `GET /taxonomy` | `{"<category>": ["<subcategory>", ...], ...}` — the full tree (`config/categories.yaml`). Added 2026-09-12 while specifying specs/016-frontend-core: a review item's `suggested_subcategories` only covers the *currently suggested* category, so a "correct to a different category" UI control needs the full tree, which nothing else exposed. Static config, no `db_path` needed. |
+| `GET /budget` | Added 2026-09-14. `{"<category>": <goal>, ...}` — the global default goals (`budget_goals` table, `month_ref = '__default__'`). Empty object, not an error, when nothing is configured. |
+| `PUT /budget` | Full replace of the global default goals. Body: `{"goals": {"<category>": <goal>, ...}}`, every value non-negative (`422` otherwise). Returns the goals as saved. |
+| `GET /months/{month_ref}/budget` | This month's own overrides plus the effective goals (default merged with them, `get_effective_budget`). `{"overrides": {...}, "effective": {...}}`. |
+| `PUT /months/{month_ref}/budget` | Full replace of this month's own overrides only — the default scope is untouched. Same body/validation/response shape as `PUT /budget`, but returns `{"overrides": {...}, "effective": {...}}`. |
 
 ### `GET .../run` response shapes
 
@@ -333,8 +337,9 @@ test ever depends on a real Ollama call.
 - The React frontend itself — a UI for these endpoints, not designed here.
 - Supabase migration, auth, deployment/hosting beyond localhost.
 - The LLM swap and the categorization golden set.
-- A budget-goals editor endpoint (explicitly deferred past the first UI cut per
-  the BRD decision).
+- ~~A budget-goals editor endpoint~~ — built 2026-09-14: `GET/PUT /budget` and
+  `GET/PUT /months/{month_ref}/budget`, backed by a new `budget_goals` table
+  replacing `config/budget.local.yaml` (see the endpoints table above).
 - Any change to `interface/cli.py`, `nodes/review.py`'s payload/parsing logic,
   or the graph's node structure — this feature only adds a new interface layer
   and the soft-delete schema/repository support underneath it.

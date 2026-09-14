@@ -13,7 +13,6 @@ class GraphState(TypedDict):
     source_files: list[str]
     month_ref: str
     db_path: str
-    budget_path: NotRequired[str]
     budget_report: NotRequired[list[dict]]
     insights_summary: NotRequired[str | None]
     insights_error: NotRequired[str | None]

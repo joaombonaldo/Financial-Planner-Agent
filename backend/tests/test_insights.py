@@ -188,12 +188,10 @@ def test_insights_blank_response_treated_as_failure(tmp_path):
 # --- Smoke test: budget_check's output correctly feeds generate_insights ----------------
 
 
-def _write_budget(tmp_path, goals: dict) -> str:
-    import yaml
-
-    path = tmp_path / "budget.local.yaml"
-    path.write_text(yaml.dump(goals), encoding="utf-8")
-    return str(path)
+def _seed_budget(db_path: str, goals: dict) -> None:
+    conn = repository.connect(db_path)
+    repository.replace_budget_goals(conn, repository.DEFAULT_BUDGET_SCOPE, goals)
+    conn.close()
 
 
 def test_budget_report_feeds_insights_context(tmp_path):
@@ -201,7 +199,7 @@ def test_budget_report_feeds_insights_context(tmp_path):
     usable by generate_insights() unmodified — this is the real connection point
     between the two nodes, tested without any LangGraph machinery involved."""
     db_path = str(tmp_path / "test.db")
-    budget_path = _write_budget(tmp_path, {"Transporte": 100.0})
+    _seed_budget(db_path, {"Transporte": 100.0})
 
     conn = repository.connect(db_path)
     seed_categorized_transaction(
@@ -209,7 +207,7 @@ def test_budget_report_feeds_insights_context(tmp_path):
     )
     conn.close()
 
-    comparisons = check_budget(MONTH_REF, db_path, budget_path)
+    comparisons = check_budget(MONTH_REF, db_path)
     budget_report = [
         {
             "category": c.category,

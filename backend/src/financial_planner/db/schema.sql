@@ -33,3 +33,21 @@ CREATE TABLE IF NOT EXISTS merchant_memory (
     category TEXT NOT NULL,
     subcategory TEXT
 );
+
+-- Budget goals (feature: budget UI, 2026-09-14). Replaces config/budget.local.yaml --
+-- BRD §5.5 always anticipated goals eventually moving to a real store "without
+-- changing the rest of the system", i.e. nodes/budget.py's callers don't change.
+-- month_ref = '__default__' (the DEFAULT_BUDGET_SCOPE sentinel, db/repository.py) is
+-- the global default; any other month_ref is that month's override for the given
+-- category, merged over the default at read time (repository.get_effective_budget).
+-- A sentinel string, not NULL, because SQLite's UNIQUE treats every NULL as
+-- distinct -- NULL would not actually stop two default rows for the same category.
+CREATE TABLE IF NOT EXISTS budget_goals (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    month_ref TEXT NOT NULL DEFAULT '__default__',
+    category TEXT NOT NULL,
+    goal REAL NOT NULL,
+    UNIQUE(month_ref, category)
+);
+
+CREATE INDEX IF NOT EXISTS idx_budget_goals_month_ref ON budget_goals (month_ref);
