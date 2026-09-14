@@ -6,12 +6,7 @@
  */
 import { Link, NavLink, Outlet, useParams } from "react-router-dom"
 
-import { Button } from "@/components/ui/button"
-
-function currentMonthRef(): string {
-  const now = new Date()
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`
-}
+import NewMonthDialog from "@/components/NewMonthDialog"
 
 function navClass({ isActive }: { isActive: boolean }): string {
   return isActive
@@ -51,9 +46,7 @@ export default function Layout() {
           ) : null}
 
           <div className="ml-auto">
-            <Button asChild size="sm">
-              <Link to={`/months/${currentMonthRef()}/upload`}>Novo mês</Link>
-            </Button>
+            <NewMonthDialog />
           </div>
         </nav>
       </header>

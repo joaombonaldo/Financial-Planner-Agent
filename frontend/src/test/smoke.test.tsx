@@ -21,7 +21,8 @@ describe("test harness", () => {
 
     expect(screen.getByText("Planejador Financeiro")).toBeInTheDocument()
     expect(screen.getByText("conteúdo")).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: "Novo mês" })).toBeInTheDocument()
+    // A dialog trigger now, not a plain link -- see components/NewMonthDialog.tsx.
+    expect(screen.getByRole("button", { name: "Novo mês" })).toBeInTheDocument()
   })
 
   it("redirects / to /months", async () => {
