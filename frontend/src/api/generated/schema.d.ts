@@ -4,6 +4,24 @@
  */
 
 export interface paths {
+    "/budget": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Default Budget */
+        get: operations["get_default_budget_budget_get"];
+        /** Put Default Budget */
+        put: operations["put_default_budget_budget_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/months": {
         parameters: {
             query?: never;
@@ -14,6 +32,24 @@ export interface paths {
         /** List Months */
         get: operations["list_months_months_get"];
         put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/months/{month_ref}/budget": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Month Budget */
+        get: operations["get_month_budget_months__month_ref__budget_get"];
+        /** Put Month Budget */
+        put: operations["put_month_budget_months__month_ref__budget_put"];
         post?: never;
         delete?: never;
         options?: never;
@@ -173,6 +209,17 @@ export interface components {
             files: string[];
         };
         /**
+         * BudgetGoalsRequest
+         * @description Full replace of one budget scope (the global default, or one month's
+         *     overrides) — a settings page naturally edits the whole set and saves once.
+         */
+        BudgetGoalsRequest: {
+            /** Goals */
+            goals?: {
+                [key: string]: number;
+            };
+        };
+        /**
          * CreateTransactionRequest
          * @description A transaction the bank statement never had — e.g. cash spending. Always
          *     lands at confidence='high': a human is directly asserting date/amount/
@@ -227,8 +274,6 @@ export interface components {
         };
         /** RunRequest */
         RunRequest: {
-            /** Budget Path */
-            budget_path?: string | null;
             /** Files */
             files?: string[];
         };
@@ -268,6 +313,63 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    get_default_budget_budget_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    put_default_budget_budget_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BudgetGoalsRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_months_months_get: {
         parameters: {
             query?: never;
@@ -286,6 +388,78 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     }[];
+                };
+            };
+        };
+    };
+    get_month_budget_months__month_ref__budget_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description e.g. 2026-08 */
+                month_ref: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_month_budget_months__month_ref__budget_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description e.g. 2026-08 */
+                month_ref: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BudgetGoalsRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

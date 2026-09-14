@@ -34,6 +34,9 @@ export default function Layout() {
           <NavLink to="/months" end className={navClass}>
             Meses
           </NavLink>
+          <NavLink to="/budget" className={navClass}>
+            Orçamento
+          </NavLink>
 
           {monthRef ? (
             <>
@@ -44,6 +47,9 @@ export default function Layout() {
               </NavLink>
               <NavLink to={`/months/${monthRef}/transactions`} className={navClass}>
                 Transações
+              </NavLink>
+              <NavLink to={`/months/${monthRef}/budget`} className={navClass}>
+                Orçamento do mês
               </NavLink>
             </>
           ) : null}

@@ -11,6 +11,8 @@
  *   )
  */
 import type {
+  BudgetGoals,
+  MonthBudget,
   MonthReport,
   MonthSummary,
   ReviewItem,
@@ -149,4 +151,18 @@ export const transferReviewItemFixture: ReviewItem = {
   },
   is_transfer_candidate: true,
   suggested_subcategories: [],
+}
+
+/** `GET /budget`'s response — the global default goals. */
+export const defaultBudgetFixture: BudgetGoals = {
+  Alimentação: 800.0,
+  Transporte: 300.0,
+  Lazer: 200.0,
+}
+
+/** `GET /months/:monthRef/budget`'s response — this month overrides "Lazer"
+ * only; "Alimentação"/"Transporte" fall back to the default fixture above. */
+export const monthBudgetFixture: MonthBudget = {
+  overrides: { Lazer: 500.0 },
+  effective: { Alimentação: 800.0, Transporte: 300.0, Lazer: 500.0 },
 }

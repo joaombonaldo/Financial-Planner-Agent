@@ -11,7 +11,9 @@ import { useQuery } from "@tanstack/react-query"
 
 import { client, unwrap } from "./client"
 import type {
+  BudgetGoals,
   Instrument,
+  MonthBudget,
   MonthReport,
   MonthSummary,
   RunState,
@@ -86,6 +88,29 @@ export function useReport(monthRef: string) {
     queryFn: () =>
       unwrap<MonthReport>(
         client.GET("/months/{month_ref}/report", {
+          params: { path: { month_ref: monthRef } },
+        }),
+      ),
+    enabled: Boolean(monthRef),
+  })
+}
+
+/** `GET /budget` — the global default goals, category -> amount. */
+export function useDefaultBudget() {
+  return useQuery<BudgetGoals, Error>({
+    queryKey: ["budget"],
+    queryFn: () => unwrap<BudgetGoals>(client.GET("/budget")),
+  })
+}
+
+/** `GET /months/{monthRef}/budget` — this month's own overrides, plus the
+ * effective goals (default merged with them). */
+export function useMonthBudget(monthRef: string) {
+  return useQuery<MonthBudget, Error>({
+    queryKey: ["budget", monthRef],
+    queryFn: () =>
+      unwrap<MonthBudget>(
+        client.GET("/months/{month_ref}/budget", {
           params: { path: { month_ref: monthRef } },
         }),
       ),

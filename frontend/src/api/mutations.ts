@@ -11,7 +11,9 @@ import { useMutation, useQueryClient } from "@tanstack/react-query"
 
 import { client, unwrap } from "./client"
 import type {
+  BudgetGoals,
   Instrument,
+  MonthBudget,
   ReviewAction,
   RunState,
   Transaction,
@@ -28,7 +30,6 @@ export interface StartRunInput {
   monthRef: string
   /** Server-side paths returned by `useUploadFiles` — not local filenames. */
   files: string[]
-  budgetPath?: string
 }
 
 export interface AnswerReviewInput {
@@ -93,11 +94,11 @@ export function useUploadFiles() {
 export function useStartRun() {
   const queryClient = useQueryClient()
   return useMutation<RunState, Error, StartRunInput>({
-    mutationFn: ({ monthRef, files, budgetPath }) =>
+    mutationFn: ({ monthRef, files }) =>
       unwrap<RunState>(
         client.POST("/months/{month_ref}/run", {
           params: { path: { month_ref: monthRef } },
-          body: { files, budget_path: budgetPath ?? null },
+          body: { files },
         }),
       ),
     onSuccess: (data, { monthRef }) => {
@@ -198,6 +199,48 @@ export function useCreateTransaction() {
       void queryClient.invalidateQueries({ queryKey: ["transactions", monthRef] })
       void queryClient.invalidateQueries({ queryKey: ["report", monthRef] })
       void queryClient.invalidateQueries({ queryKey: ["months"] })
+    },
+  })
+}
+
+/**
+ * `PUT /budget` — full replace of the global default goals.
+ *
+ * Every month's `get_effective_budget` falls back to this scope, so a change
+ * here can move any month's report, not just one — invalidate both broadly
+ * (prefix match: `["budget"]` catches every `["budget", monthRef]` too).
+ */
+export function useSetDefaultBudget() {
+  const queryClient = useQueryClient()
+  return useMutation<BudgetGoals, Error, BudgetGoals>({
+    mutationFn: (goals) =>
+      unwrap<BudgetGoals>(client.PUT("/budget", { body: { goals } })),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["budget"] })
+      void queryClient.invalidateQueries({ queryKey: ["report"] })
+    },
+  })
+}
+
+export interface SetMonthBudgetInput {
+  monthRef: string
+  goals: BudgetGoals
+}
+
+/** `PUT /months/{monthRef}/budget` — full replace of one month's own overrides. */
+export function useSetMonthBudget() {
+  const queryClient = useQueryClient()
+  return useMutation<MonthBudget, Error, SetMonthBudgetInput>({
+    mutationFn: ({ monthRef, goals }) =>
+      unwrap<MonthBudget>(
+        client.PUT("/months/{month_ref}/budget", {
+          params: { path: { month_ref: monthRef } },
+          body: { goals },
+        }),
+      ),
+    onSuccess: (_data, { monthRef }) => {
+      void queryClient.invalidateQueries({ queryKey: ["budget", monthRef] })
+      void queryClient.invalidateQueries({ queryKey: ["report", monthRef] })
     },
   })
 }

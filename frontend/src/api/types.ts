@@ -44,6 +44,10 @@ export type TransactionPatch = components["schemas"]["TransactionPatch"]
  * statement. `date` derives its `month_ref`, not supplied by the caller. */
 export type CreateTransactionRequest = components["schemas"]["CreateTransactionRequest"]
 
+/** Body of `PUT /budget` and `PUT /months/{monthRef}/budget` — a full replace
+ * of one scope's goals, category -> goal amount. */
+export type BudgetGoalsRequest = components["schemas"]["BudgetGoalsRequest"]
+
 // --- hand-written response shapes -------------------------------------------------
 
 /** `"income" | "expense"` (state.py `TransactionType`). */
@@ -193,4 +197,14 @@ export type RunState =
 /** `POST /months/{monthRef}/uploads` — the saved server-side paths, to feed into a run. */
 export interface UploadResponse {
   files: string[]
+}
+
+/** category -> goal amount. `GET /budget` / `PUT /budget`'s response shape. */
+export type BudgetGoals = Record<string, number>
+
+/** `GET /months/{monthRef}/budget` and `PUT /months/{monthRef}/budget`'s response:
+ * this month's own overrides, and the effective goals (default merged with them). */
+export interface MonthBudget {
+  overrides: BudgetGoals
+  effective: BudgetGoals
 }

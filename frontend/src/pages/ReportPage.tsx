@@ -31,7 +31,7 @@
  * `node scripts/validate_palette.js "#2a78d6,#d03b3b" --mode light` and the dark
  * pair both pass every check.
  */
-import { useParams } from "react-router-dom"
+import { Link, useParams } from "react-router-dom"
 
 import { useReport } from "@/api/queries"
 import type {
@@ -42,6 +42,7 @@ import type {
   MonthReport,
 } from "@/api/types"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
@@ -430,8 +431,11 @@ function ReportBody({ report }: { report: MonthReport }) {
       ) : null}
 
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-base">Orçamento</CardTitle>
+          <Button asChild variant="outline" size="sm">
+            <Link to={`/months/${report.month_ref}/budget`}>Editar orçamento</Link>
+          </Button>
         </CardHeader>
         <CardContent>
           {report.budget_report.length === 0 ? (

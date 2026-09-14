@@ -36,6 +36,8 @@ those decisions and on the already-implemented, smoke-tested
 | `/months/:monthRef/review` | The review flow — shown automatically while a run is `processing`/`pending_review` | `GET /months/:monthRef/run`, `POST /months/:monthRef/review` |
 | `/months/:monthRef/report` | Dashboard: totals, category breakdown, budget comparison, credit-card reconciliation, insights summary | `GET /months/:monthRef/report` |
 | `/months/:monthRef/transactions` | Browse/manually edit a month's transactions, and add one by hand | `GET /months/:monthRef/transactions`, `PATCH /transactions/:dedupHash`, `POST /transactions` (added 2026-09-14) |
+| `/budget` | Added 2026-09-14. Configure the global default budget goals (add/edit/remove a category's monthly goal) | `GET /budget`, `PUT /budget` |
+| `/months/:monthRef/budget` | Added 2026-09-14. Edit this month's own overrides; also shows the effective (merged) goals actually in force for the month. Linked from the report's "Orçamento" card and from the month nav | `GET /months/:monthRef/budget`, `PUT /months/:monthRef/budget` |
 
 A month's natural path through these is upload → review → report, but each
 route is independently reachable — `/months/:monthRef/report` and
@@ -202,8 +204,9 @@ Same discipline as the backend (BRD §9, specs/015 "Testing strategy"):
 
 ## Out of scope (this feature)
 
-- A budget-goals editor screen (BRD: explicitly deferred past the first UI
-  cut).
+- ~~A budget-goals editor screen~~ — built 2026-09-14: `/budget` (global
+  defaults) and `/months/:monthRef/budget` (per-month overrides), see the
+  routes table above.
 - Batch/table-based review via `PATCH` (BRD: deliberately deferred, see
   "Decisions this spec builds on").
 - Any change to `interface/api.py` or any other backend file — this feature

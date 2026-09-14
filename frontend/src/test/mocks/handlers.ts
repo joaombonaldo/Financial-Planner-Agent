@@ -25,6 +25,8 @@ import { http, HttpResponse } from "msw"
 
 import { API_BASE_URL } from "@/api/client"
 import {
+  defaultBudgetFixture,
+  monthBudgetFixture,
   monthsFixture,
   reportFixture,
   reviewItemFixture,
@@ -134,6 +136,30 @@ export const handlers = [
       },
       { status: 201 },
     )
+  }),
+
+  // GET /budget
+  http.get(url("/budget"), () => HttpResponse.json(defaultBudgetFixture)),
+
+  // PUT /budget — echoes the replacement back, same as the real endpoint.
+  http.put(url("/budget"), async ({ request }) => {
+    const body = (await request.json()) as { goals: Record<string, number> }
+    return HttpResponse.json(body.goals)
+  }),
+
+  // GET /months/:monthRef/budget
+  http.get(url("/months/:monthRef/budget"), () =>
+    HttpResponse.json(monthBudgetFixture),
+  ),
+
+  // PUT /months/:monthRef/budget — echoes overrides back, effective merges them
+  // over the default fixture the same way get_effective_budget does.
+  http.put(url("/months/:monthRef/budget"), async ({ request }) => {
+    const body = (await request.json()) as { goals: Record<string, number> }
+    return HttpResponse.json({
+      overrides: body.goals,
+      effective: { ...defaultBudgetFixture, ...body.goals },
+    })
   }),
 
   // PATCH /transactions/:dedupHash — echoes the patch back onto the matching

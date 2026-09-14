@@ -26,6 +26,20 @@
         "title": "Body_upload_statements_months__month_ref__uploads_post",
         "type": "object"
       },
+      "BudgetGoalsRequest": {
+        "description": "Full replace of one budget scope (the global default, or one month's\noverrides) \u2014 a settings page naturally edits the whole set and saves once.",
+        "properties": {
+          "goals": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Goals",
+            "type": "object"
+          }
+        },
+        "title": "BudgetGoalsRequest",
+        "type": "object"
+      },
       "CreateTransactionRequest": {
         "description": "A transaction the bank statement never had \u2014 e.g. cash spending. Always\nlands at confidence='high': a human is directly asserting date/amount/\ncategory, there's nothing left to review (nodes/transactions.py:create).",
         "properties": {
@@ -146,17 +160,6 @@
       },
       "RunRequest": {
         "properties": {
-          "budget_path": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Budget Path"
-          },
           "files": {
             "items": {
               "type": "string"
@@ -263,6 +266,64 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/budget": {
+      "get": {
+        "operationId": "get_default_budget_budget_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Default Budget Budget Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Default Budget"
+      },
+      "put": {
+        "operationId": "put_default_budget_budget_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BudgetGoalsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Put Default Budget Budget Put",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Default Budget"
+      }
+    },
     "/months": {
       "get": {
         "operationId": "list_months_months_get",
@@ -284,6 +345,102 @@
           }
         },
         "summary": "List Months"
+      }
+    },
+    "/months/{month_ref}/budget": {
+      "get": {
+        "operationId": "get_month_budget_months__month_ref__budget_get",
+        "parameters": [
+          {
+            "description": "e.g. 2026-08",
+            "in": "path",
+            "name": "month_ref",
+            "required": true,
+            "schema": {
+              "description": "e.g. 2026-08",
+              "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+              "title": "Month Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Month Budget Months  Month Ref  Budget Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Month Budget"
+      },
+      "put": {
+        "operationId": "put_month_budget_months__month_ref__budget_put",
+        "parameters": [
+          {
+            "description": "e.g. 2026-08",
+            "in": "path",
+            "name": "month_ref",
+            "required": true,
+            "schema": {
+              "description": "e.g. 2026-08",
+              "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+              "title": "Month Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BudgetGoalsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Put Month Budget Months  Month Ref  Budget Put",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Month Budget"
       }
     },
     "/months/{month_ref}/report": {

@@ -8,6 +8,8 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom"
 
 import Layout from "@/components/Layout"
 import { Toaster } from "@/components/ui/sonner"
+import BudgetPage from "@/pages/BudgetPage"
+import MonthBudgetPage from "@/pages/MonthBudgetPage"
 import MonthsPage from "@/pages/MonthsPage"
 import ReportPage from "@/pages/ReportPage"
 import ReviewPage from "@/pages/ReviewPage"
@@ -32,10 +34,12 @@ export function AppRoutes() {
       <Route element={<Layout />}>
         <Route path="/" element={<Navigate to="/months" replace />} />
         <Route path="/months" element={<MonthsPage />} />
+        <Route path="/budget" element={<BudgetPage />} />
         <Route path="/months/:monthRef/upload" element={<UploadPage />} />
         <Route path="/months/:monthRef/review" element={<ReviewPage />} />
         <Route path="/months/:monthRef/report" element={<ReportPage />} />
         <Route path="/months/:monthRef/transactions" element={<TransactionsPage />} />
+        <Route path="/months/:monthRef/budget" element={<MonthBudgetPage />} />
       </Route>
     </Routes>
   )
