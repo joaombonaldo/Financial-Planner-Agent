@@ -9,14 +9,14 @@
  * `transactions`/`report` caches on success — this page never refetches
  * manually.
  */
-import { PencilIcon, RotateCcwIcon, Trash2Icon } from "lucide-react"
+import { PencilIcon, PlusIcon, RotateCcwIcon, Trash2Icon } from "lucide-react"
 import { useMemo, useState } from "react"
 import { useParams } from "react-router-dom"
 
 import type { TransactionFilters } from "@/api/queries"
 import { useTaxonomy, useTransactions } from "@/api/queries"
-import { usePatchTransaction } from "@/api/mutations"
-import type { Instrument, Transaction } from "@/api/types"
+import { useCreateTransaction, usePatchTransaction } from "@/api/mutations"
+import type { Instrument, Transaction, TransactionType } from "@/api/types"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -36,7 +36,9 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
   Select,
@@ -273,6 +275,238 @@ function TransactionRow({ transaction }: { transaction: Transaction }) {
   )
 }
 
+// The strict pair, not the app's widened `Bank` display type -- a new
+// transaction is always one of the two known accounts (see mutations.ts).
+type AccountValue = "bradesco" | "inter"
+
+const ACCOUNT_LABEL: Record<AccountValue, string> = { bradesco: "Bradesco", inter: "Inter" }
+const TYPE_LABEL: Record<TransactionType, string> = { expense: "Despesa", income: "Receita" }
+
+/**
+ * "Adicionar transação" — something the bank statement never had (cash
+ * spending, an adjustment). Its date decides which month it lands in
+ * server-side; `monthRef` here is only used to prefill a sensible default date
+ * so adding from August's page defaults to a day in August.
+ */
+function AddTransactionDialog({ monthRef }: { monthRef: string }) {
+  const [open, setOpen] = useState(false)
+  const [date, setDate] = useState(`${monthRef}-01`)
+  const [description, setDescription] = useState("")
+  const [account, setAccount] = useState<AccountValue>("bradesco")
+  const [type, setType] = useState<TransactionType>("expense")
+  const [amount, setAmount] = useState("")
+  const [category, setCategory] = useState("")
+  const [subcategory, setSubcategory] = useState("")
+  const [instrument, setInstrument] = useState<Instrument>("debit")
+
+  const { data: taxonomy } = useTaxonomy()
+  const create = useCreateTransaction()
+
+  const subcategories = category ? (taxonomy?.[category] ?? []) : []
+  const amountValue = Number(amount)
+  const isValid =
+    date.length > 0 &&
+    description.trim().length > 0 &&
+    Number.isFinite(amountValue) &&
+    amountValue > 0 &&
+    category.length > 0
+
+  function reset() {
+    setDate(`${monthRef}-01`)
+    setDescription("")
+    setAccount("bradesco")
+    setType("expense")
+    setAmount("")
+    setCategory("")
+    setSubcategory("")
+    setInstrument("debit")
+  }
+
+  function handleSubmit() {
+    if (!isValid) return
+    create.mutate(
+      {
+        date,
+        descriptionRaw: description.trim(),
+        account,
+        type,
+        amount: amountValue,
+        category,
+        subcategory: subcategory || undefined,
+        instrument,
+      },
+      {
+        onSuccess: () => {
+          setOpen(false)
+          reset()
+        },
+      },
+    )
+  }
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next)
+        if (!next) reset()
+      }}
+    >
+      <DialogTrigger asChild>
+        <Button size="sm">
+          <PlusIcon /> Adicionar transação
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Adicionar transação</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="add-date">Data</Label>
+              <Input
+                id="add-date"
+                type="date"
+                value={date}
+                onChange={(event) => setDate(event.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="add-amount">Valor</Label>
+              <Input
+                id="add-amount"
+                type="number"
+                min="0.01"
+                step="0.01"
+                placeholder="0,00"
+                value={amount}
+                onChange={(event) => setAmount(event.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="add-description">Descrição</Label>
+            <Input
+              id="add-description"
+              value={description}
+              onChange={(event) => setDescription(event.target.value)}
+              placeholder="Ex.: Feira livre"
+            />
+          </div>
+
+          <div className="grid grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="add-account">Conta</Label>
+              <Select value={account} onValueChange={(value) => setAccount(value as AccountValue)}>
+                <SelectTrigger id="add-account" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(ACCOUNT_LABEL).map(([value, label]) => (
+                    <SelectItem key={value} value={value}>
+                      {label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="add-type">Tipo</Label>
+              <Select
+                value={type}
+                onValueChange={(value) => setType(value as TransactionType)}
+              >
+                <SelectTrigger id="add-type" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(TYPE_LABEL).map(([value, label]) => (
+                    <SelectItem key={value} value={value}>
+                      {label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="add-instrument">Instrumento</Label>
+              <Select
+                value={instrument}
+                onValueChange={(value) => setInstrument(value as Instrument)}
+              >
+                <SelectTrigger id="add-instrument" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="debit">Débito</SelectItem>
+                  <SelectItem value="credit">Cartão de crédito</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="add-category">Categoria</Label>
+              <Select
+                value={category}
+                onValueChange={(value) => {
+                  setCategory(value)
+                  setSubcategory("")
+                }}
+              >
+                <SelectTrigger id="add-category" className="w-full">
+                  <SelectValue placeholder="Selecione uma categoria" />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.keys(taxonomy ?? {}).map((name) => (
+                    <SelectItem key={name} value={name}>
+                      {name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="add-subcategory">Subcategoria</Label>
+              <Select
+                value={subcategory}
+                onValueChange={setSubcategory}
+                disabled={subcategories.length === 0}
+              >
+                <SelectTrigger id="add-subcategory" className="w-full">
+                  <SelectValue placeholder="Selecione uma subcategoria" />
+                </SelectTrigger>
+                <SelectContent>
+                  {subcategories.map((name) => (
+                    <SelectItem key={name} value={name}>
+                      {name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {create.isError ? (
+            <p className="text-sm text-destructive">{create.error.message}</p>
+          ) : null}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setOpen(false)}>
+            Cancelar
+          </Button>
+          <Button onClick={handleSubmit} disabled={!isValid || create.isPending}>
+            Adicionar
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 export default function TransactionsPage() {
   const { monthRef } = useParams<{ monthRef: string }>()
   const [instrument, setInstrument] = useState<string>(ALL_INSTRUMENTS)
@@ -296,7 +530,10 @@ export default function TransactionsPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-semibold">Transações</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-semibold">Transações</h1>
+        <AddTransactionDialog monthRef={monthRef ?? ""} />
+      </div>
 
       <div className="flex flex-wrap items-end gap-4">
         <div className="space-y-2">

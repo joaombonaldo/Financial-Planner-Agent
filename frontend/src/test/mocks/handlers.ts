@@ -103,6 +103,39 @@ export const handlers = [
     return HttpResponse.json(rows)
   }),
 
+  // POST /transactions — a hand-entered transaction. month_ref is derived from
+  // the given date's YYYY-MM, same as the real endpoint (nodes/transactions.py:create).
+  http.post(url("/transactions"), async ({ request }) => {
+    const body = (await request.json()) as {
+      date: string
+      description_raw: string
+      account: string
+      type: string
+      amount: number
+      category: string
+      subcategory?: string | null
+      instrument?: string
+    }
+    return HttpResponse.json(
+      {
+        dedup_hash: "manual-fixture",
+        date: body.date,
+        description_raw: body.description_raw,
+        account: body.account,
+        type: body.type,
+        amount: body.amount,
+        month_ref: body.date.slice(0, 7),
+        category: body.category,
+        subcategory: body.subcategory ?? null,
+        confidence: "high",
+        instrument: body.instrument ?? "debit",
+        fatura_ref: null,
+        deleted_at: null,
+      },
+      { status: 201 },
+    )
+  }),
+
   // PATCH /transactions/:dedupHash — echoes the patch back onto the matching
   // fixture row, the way the real endpoint returns the updated transaction.
   http.patch(url("/transactions/:dedupHash"), async ({ params, request }) => {

@@ -124,6 +124,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/transactions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Transaction */
+        post: operations["create_transaction_transactions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/transactions/{dedup_hash}": {
         parameters: {
             query?: never;
@@ -145,10 +162,40 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * Bank
+         * @enum {string}
+         */
+        Bank: "bradesco" | "inter";
         /** Body_upload_statements_months__month_ref__uploads_post */
         Body_upload_statements_months__month_ref__uploads_post: {
             /** Files */
             files: string[];
+        };
+        /**
+         * CreateTransactionRequest
+         * @description A transaction the bank statement never had — e.g. cash spending. Always
+         *     lands at confidence='high': a human is directly asserting date/amount/
+         *     category, there's nothing left to review (nodes/transactions.py:create).
+         */
+        CreateTransactionRequest: {
+            account: components["schemas"]["Bank"];
+            /** Amount */
+            amount: number;
+            /** Category */
+            category: string;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Description Raw */
+            description_raw: string;
+            /** @default debit */
+            instrument: components["schemas"]["Instrument"];
+            /** Subcategory */
+            subcategory?: string | null;
+            type: components["schemas"]["TransactionType"];
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -194,6 +241,11 @@ export interface components {
             /** Subcategory */
             subcategory?: string | null;
         };
+        /**
+         * TransactionType
+         * @enum {string}
+         */
+        TransactionType: "income" | "expense";
         /** ValidationError */
         ValidationError: {
             /** Context */
@@ -476,6 +528,41 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+        };
+    };
+    create_transaction_transactions_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateTransactionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

@@ -210,4 +210,97 @@ describe("TransactionsPage", () => {
 
     expect(await screen.findByText("boom")).toBeInTheDocument()
   })
+
+  it("adds a transaction with the entered fields", async () => {
+    const user = userEvent.setup()
+    seedTransactions()
+    let capturedBody: unknown
+    server.use(
+      http.post(url("/transactions"), async ({ request }) => {
+        capturedBody = await request.json()
+        return HttpResponse.json(
+          {
+            dedup_hash: "manual-1",
+            date: "2026-08-20",
+            description_raw: "Feira livre",
+            account: "inter",
+            type: "expense",
+            amount: 45,
+            month_ref: "2026-08",
+            category: "Alimentação",
+            subcategory: "Supermercado",
+            confidence: "high",
+            instrument: "debit",
+            fatura_ref: null,
+            deleted_at: null,
+          },
+          { status: 201 },
+        )
+      }),
+    )
+    renderWithProviders(<TransactionsPage />, { route: ROUTE })
+
+    await user.click(await screen.findByRole("button", { name: "Adicionar transação" }))
+    await user.type(screen.getByLabelText("Descrição"), "Feira livre")
+    await user.type(screen.getByLabelText("Valor"), "45")
+
+    await user.click(screen.getByRole("combobox", { name: "Categoria" }))
+    await user.click(await screen.findByRole("option", { name: "Alimentação" }))
+    await user.click(screen.getByRole("combobox", { name: "Subcategoria" }))
+    await user.click(await screen.findByRole("option", { name: "Supermercado" }))
+
+    await user.click(screen.getByRole("button", { name: "Adicionar" }))
+
+    await waitFor(() => expect(capturedBody).toBeDefined())
+    expect(capturedBody).toMatchObject({
+      description_raw: "Feira livre",
+      amount: 45,
+      category: "Alimentação",
+      subcategory: "Supermercado",
+      account: "bradesco",
+      type: "expense",
+      instrument: "debit",
+    })
+    // The dialog closes on success.
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+  })
+
+  it("disables the submit button until the required fields are valid", async () => {
+    const user = userEvent.setup()
+    seedTransactions()
+    renderWithProviders(<TransactionsPage />, { route: ROUTE })
+
+    await user.click(await screen.findByRole("button", { name: "Adicionar transação" }))
+
+    expect(screen.getByRole("button", { name: "Adicionar" })).toBeDisabled()
+
+    await user.type(screen.getByLabelText("Descrição"), "Algo")
+    await user.type(screen.getByLabelText("Valor"), "10")
+    expect(screen.getByRole("button", { name: "Adicionar" })).toBeDisabled()
+
+    await user.click(screen.getByRole("combobox", { name: "Categoria" }))
+    await user.click(await screen.findByRole("option", { name: "Transferências" }))
+
+    expect(screen.getByRole("button", { name: "Adicionar" })).toBeEnabled()
+  })
+
+  it("shows the error message when adding a transaction fails", async () => {
+    const user = userEvent.setup()
+    seedTransactions()
+    server.use(
+      http.post(url("/transactions"), () =>
+        errorResponse(422, "validation_error", "Valor deve ser positivo."),
+      ),
+    )
+    renderWithProviders(<TransactionsPage />, { route: ROUTE })
+
+    await user.click(await screen.findByRole("button", { name: "Adicionar transação" }))
+    await user.type(screen.getByLabelText("Descrição"), "Algo")
+    await user.type(screen.getByLabelText("Valor"), "10")
+    await user.click(screen.getByRole("combobox", { name: "Categoria" }))
+    await user.click(await screen.findByRole("option", { name: "Transferências" }))
+    await user.click(screen.getByRole("button", { name: "Adicionar" }))
+
+    expect(await screen.findByText("Valor deve ser positivo.")).toBeInTheDocument()
+  })
 })

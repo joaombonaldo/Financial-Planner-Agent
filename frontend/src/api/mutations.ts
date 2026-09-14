@@ -10,7 +10,14 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 
 import { client, unwrap } from "./client"
-import type { ReviewAction, RunState, Transaction, UploadResponse } from "./types"
+import type {
+  Instrument,
+  ReviewAction,
+  RunState,
+  Transaction,
+  TransactionType,
+  UploadResponse,
+} from "./types"
 
 export interface UploadFilesInput {
   monthRef: string
@@ -36,6 +43,21 @@ export interface PatchTransactionInput {
   category?: string
   subcategory?: string
   deleted?: boolean
+}
+
+export interface CreateTransactionInput {
+  /** ISO date, `YYYY-MM-DD` — its `YYYY-MM` decides which month this lands in. */
+  date: string
+  descriptionRaw: string
+  // Deliberately the strict pair, not the app's widened `Bank` display type
+  // (`"bradesco" | "inter" | (string & {})`) — a new transaction is always one
+  // of the two known accounts, never an arbitrary server-supplied value.
+  account: "bradesco" | "inter"
+  type: TransactionType
+  amount: number
+  category: string
+  subcategory?: string
+  instrument?: Instrument
 }
 
 /**
@@ -141,6 +163,41 @@ export function usePatchTransaction() {
       // filter combination currently cached for that month.
       void queryClient.invalidateQueries({ queryKey: ["transactions", monthRef] })
       void queryClient.invalidateQueries({ queryKey: ["report", monthRef] })
+    },
+  })
+}
+
+/**
+ * `POST /transactions` — a hand-entered transaction the statement never had
+ * (e.g. cash spending). `date` decides the month it lands in server-side; the
+ * caller doesn't pick a `monthRef` directly.
+ *
+ * Invalidates that month's transactions/report/months-list caches on success —
+ * same reasoning as `usePatchTransaction`.
+ */
+export function useCreateTransaction() {
+  const queryClient = useQueryClient()
+  return useMutation<Transaction, Error, CreateTransactionInput>({
+    mutationFn: (input) =>
+      unwrap<Transaction>(
+        client.POST("/transactions", {
+          body: {
+            date: input.date,
+            description_raw: input.descriptionRaw,
+            account: input.account,
+            type: input.type,
+            amount: input.amount,
+            category: input.category,
+            subcategory: input.subcategory ?? null,
+            instrument: input.instrument ?? "debit",
+          },
+        }),
+      ),
+    onSuccess: (transaction) => {
+      const monthRef = transaction.month_ref
+      void queryClient.invalidateQueries({ queryKey: ["transactions", monthRef] })
+      void queryClient.invalidateQueries({ queryKey: ["report", monthRef] })
+      void queryClient.invalidateQueries({ queryKey: ["months"] })
     },
   })
 }

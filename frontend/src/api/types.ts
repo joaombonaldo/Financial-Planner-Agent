@@ -40,6 +40,10 @@ export type ReviewAction = ReviewRequest["action"]
 /** Body of `PATCH /transactions/{dedupHash}`. */
 export type TransactionPatch = components["schemas"]["TransactionPatch"]
 
+/** Body of `POST /transactions` — a hand-entered transaction, not from a
+ * statement. `date` derives its `month_ref`, not supplied by the caller. */
+export type CreateTransactionRequest = components["schemas"]["CreateTransactionRequest"]
+
 // --- hand-written response shapes -------------------------------------------------
 
 /** `"income" | "expense"` (state.py `TransactionType`). */

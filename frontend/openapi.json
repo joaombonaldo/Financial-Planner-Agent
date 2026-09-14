@@ -1,6 +1,14 @@
 {
   "components": {
     "schemas": {
+      "Bank": {
+        "enum": [
+          "bradesco",
+          "inter"
+        ],
+        "title": "Bank",
+        "type": "string"
+      },
       "Body_upload_statements_months__month_ref__uploads_post": {
         "properties": {
           "files": {
@@ -16,6 +24,62 @@
           "files"
         ],
         "title": "Body_upload_statements_months__month_ref__uploads_post",
+        "type": "object"
+      },
+      "CreateTransactionRequest": {
+        "description": "A transaction the bank statement never had \u2014 e.g. cash spending. Always\nlands at confidence='high': a human is directly asserting date/amount/\ncategory, there's nothing left to review (nodes/transactions.py:create).",
+        "properties": {
+          "account": {
+            "$ref": "#/components/schemas/Bank"
+          },
+          "amount": {
+            "exclusiveMinimum": 0.0,
+            "title": "Amount",
+            "type": "number"
+          },
+          "category": {
+            "minLength": 1,
+            "title": "Category",
+            "type": "string"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "description_raw": {
+            "minLength": 1,
+            "title": "Description Raw",
+            "type": "string"
+          },
+          "instrument": {
+            "$ref": "#/components/schemas/Instrument",
+            "default": "debit"
+          },
+          "subcategory": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subcategory"
+          },
+          "type": {
+            "$ref": "#/components/schemas/TransactionType"
+          }
+        },
+        "required": [
+          "date",
+          "description_raw",
+          "account",
+          "type",
+          "amount",
+          "category"
+        ],
+        "title": "CreateTransactionRequest",
         "type": "object"
       },
       "HTTPValidationError": {
@@ -142,6 +206,14 @@
         },
         "title": "TransactionPatch",
         "type": "object"
+      },
+      "TransactionType": {
+        "enum": [
+          "income",
+          "expense"
+        ],
+        "title": "TransactionType",
+        "type": "string"
       },
       "ValidationError": {
         "properties": {
@@ -571,6 +643,46 @@
           }
         },
         "summary": "Taxonomy"
+      }
+    },
+    "/transactions": {
+      "post": {
+        "operationId": "create_transaction_transactions_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTransactionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Create Transaction Transactions Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Transaction"
       }
     },
     "/transactions/{dedup_hash}": {

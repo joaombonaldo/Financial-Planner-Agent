@@ -35,7 +35,7 @@ those decisions and on the already-implemented, smoke-tested
 | `/months/:monthRef/upload` | Upload statement files for a month, then start the run | `POST /months/:monthRef/uploads`, `POST /months/:monthRef/run` |
 | `/months/:monthRef/review` | The review flow — shown automatically while a run is `processing`/`pending_review` | `GET /months/:monthRef/run`, `POST /months/:monthRef/review` |
 | `/months/:monthRef/report` | Dashboard: totals, category breakdown, budget comparison, credit-card reconciliation, insights summary | `GET /months/:monthRef/report` |
-| `/months/:monthRef/transactions` | Browse/manually edit a month's transactions | `GET /months/:monthRef/transactions`, `PATCH /transactions/:dedupHash` |
+| `/months/:monthRef/transactions` | Browse/manually edit a month's transactions, and add one by hand | `GET /months/:monthRef/transactions`, `PATCH /transactions/:dedupHash`, `POST /transactions` (added 2026-09-14) |
 
 A month's natural path through these is upload → review → report, but each
 route is independently reachable — `/months/:monthRef/report` and
