@@ -6,7 +6,7 @@
  * `useRunStatus` owns the polling itself (1s while "processing", stopped
  * otherwise), so there is deliberately no local copy of the run's state here:
  *
- *   not_started    -> "envie os extratos primeiro" + link back to /upload
+ *   not_started    -> auto-drives POST .../run once, see below
  *   processing     -> spinner
  *   pending_review -> the item card + accept / confirm-transfer / correct
  *   completed      -> navigate to /report
@@ -15,9 +15,20 @@
  * `useAnswerReview` primes `["run", monthRef]` with the `202` body itself, so an
  * answer flips this back to "processing" and the poller resumes without any
  * manual refetch here.
+ *
+ * `not_started` does NOT mean "never processed" — the run-state registry is
+ * in-memory on the backend (specs/015-fastapi-core-api), so it just as often
+ * means "this server doesn't remember this month's run," which happens after a
+ * backend restart, or when this screen is reached for a month that was fully
+ * processed in an earlier session. Either way, this page is only ever reached
+ * right after upload or via a "has pending review" link (Layout has no standing
+ * "Revisão" tab — see its own docstring), so there is nothing for a person to
+ * *do* here on `not_started`: silently re-issue `POST .../run` (empty file
+ * list — safe/idempotent, see the module-level note above) and let it resolve
+ * to whatever's actually true, instead of a dead-end "send the extract again."
  */
-import { type ReactNode, useEffect, useState } from "react"
-import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
+import { type ReactNode, useEffect, useRef, useState } from "react"
+import { useLocation, useNavigate, useParams } from "react-router-dom"
 
 import { useAnswerReview, useStartRun } from "@/api/mutations"
 import { useRunStatus, useTaxonomy } from "@/api/queries"
@@ -65,6 +76,20 @@ export default function ReviewPage() {
     }
   }, [status, monthRef, navigate])
 
+  // "not_started" is the backend not remembering this month's run, not proof it
+  // was never processed (see the module docstring) — resolve it automatically
+  // instead of asking the user to do something about it. The ref guard is what
+  // makes this fire once per mount, not the dependency array (both `files`, a
+  // fresh array literal off `location.state` on every render, and `startRun`
+  // change identity often).
+  const autoStarted = useRef(false)
+  useEffect(() => {
+    if (status === "not_started" && !autoStarted.current) {
+      autoStarted.current = true
+      startRun.mutate({ monthRef, files })
+    }
+  }, [status, monthRef, files, startRun])
+
   if (runStatus.isLoading) {
     return <StatusCard title="Revisão">Carregando...</StatusCard>
   }
@@ -82,14 +107,30 @@ export default function ReviewPage() {
 
   switch (run.status) {
     case "not_started":
-      return (
-        <StatusCard title="Envie os extratos primeiro">
-          <p className="text-sm text-muted-foreground">
-            Nenhum processamento foi iniciado para {monthRef}.
-          </p>
-          <Link className="text-sm underline" to={`/months/${monthRef}/upload`}>
-            Ir para o envio de extratos
-          </Link>
+      // Auto-resolving (see the effect above) — this is what that looks like
+      // while it's in flight. A genuine failure to even start shows through
+      // startRun's own error state instead of a silent stall.
+      return startRun.isError ? (
+        <StatusCard title="Ocorreu um erro">
+          <p className="text-sm text-muted-foreground">{startRun.error.message}</p>
+          <Button
+            disabled={startRun.isPending}
+            onClick={() => startRun.mutate({ monthRef, files })}
+          >
+            Tentar novamente
+          </Button>
+        </StatusCard>
+      ) : (
+        <StatusCard title="Revisão pendente">
+          <div className="flex items-center gap-3">
+            <span
+              aria-hidden="true"
+              className="size-4 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent"
+            />
+            <p role="status" className="text-sm text-muted-foreground">
+              Verificando o mês...
+            </p>
+          </div>
         </StatusCard>
       )
 

@@ -3,6 +3,12 @@
  *
  * UI chrome is Portuguese (specs/016-frontend-core "UI chrome in Portuguese",
  * matching the CLI's rule) even though the API itself speaks English/technical.
+ *
+ * No "Revisão" tab here on purpose: review is a transient step in the upload ->
+ * process flow, not a standing page you come back to (see ReviewPage.tsx's own
+ * docstring). It's reached only via UploadPage's automatic handoff, or from
+ * MonthsPage's row link when a month actually has something pending. Once a
+ * month is processed, Transações is where any further change happens.
  */
 import { Link, NavLink, Outlet, useParams } from "react-router-dom"
 
@@ -33,9 +39,6 @@ export default function Layout() {
             <>
               <span className="text-muted-foreground">/</span>
               <span className="font-mono text-muted-foreground">{monthRef}</span>
-              <NavLink to={`/months/${monthRef}/review`} className={navClass}>
-                Revisão
-              </NavLink>
               <NavLink to={`/months/${monthRef}/report`} className={navClass}>
                 Relatório
               </NavLink>

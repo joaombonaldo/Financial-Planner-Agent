@@ -59,15 +59,54 @@ function renderWithRouterState(state: unknown) {
 }
 
 describe("ReviewPage", () => {
-  it("points back to the upload screen when no run has started", async () => {
-    server.use(runStatus({ status: "not_started" }))
+  it("silently resolves 'not_started' instead of asking to re-upload", async () => {
+    // "not_started" means the backend's in-memory registry doesn't recognize
+    // this month, not that it was never processed (specs/015's registry is
+    // ephemeral) -- this page has no standing "Revisão" nav entry (Layout), so
+    // the only sane behavior on landing here in that state is to resolve it,
+    // not hand the user a dead end.
+    const bodies: RunRequest[] = []
+    server.use(
+      runStatus({ status: "not_started" }),
+      http.post(url("/months/:monthRef/run"), async ({ request }) => {
+        bodies.push((await request.json()) as RunRequest)
+        return HttpResponse.json({ status: "processing" }, { status: 202 })
+      }),
+    )
     renderWithProviders(<ReviewPage />, { route: ROUTE })
 
-    expect(await screen.findByText("Envie os extratos primeiro")).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: /envio de extratos/i })).toHaveAttribute(
-      "href",
-      "/months/2026-08/upload",
+    expect(await screen.findByText("Verificando o mês...")).toBeInTheDocument()
+    await waitFor(() => expect(bodies).toHaveLength(1))
+    expect(bodies[0].files).toEqual([])
+  })
+
+  it("carries files from the upload screen when auto-resolving 'not_started'", async () => {
+    const uploaded = ["extracts/2026-08/bradesco.csv", "extracts/2026-08/inter.pdf"]
+    const bodies: RunRequest[] = []
+    server.use(
+      runStatus({ status: "not_started" }),
+      http.post(url("/months/:monthRef/run"), async ({ request }) => {
+        bodies.push((await request.json()) as RunRequest)
+        return HttpResponse.json({ status: "processing" }, { status: 202 })
+      }),
     )
+    renderWithRouterState({ files: uploaded })
+
+    await waitFor(() => expect(bodies).toHaveLength(1))
+    expect(bodies[0].files).toEqual(uploaded)
+  })
+
+  it("shows an error if auto-resolving 'not_started' itself fails", async () => {
+    server.use(
+      runStatus({ status: "not_started" }),
+      http.post(url("/months/:monthRef/run"), () =>
+        errorResponse(500, "internal_error", "falha ao iniciar o processamento"),
+      ),
+    )
+    renderWithProviders(<ReviewPage />, { route: ROUTE })
+
+    expect(await screen.findByText("falha ao iniciar o processamento")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Tentar novamente" })).toBeInTheDocument()
   })
 
   it("shows a loading state while the run is processing", async () => {
