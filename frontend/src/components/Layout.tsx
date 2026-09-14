@@ -26,38 +26,46 @@ export default function Layout() {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <header className="border-b">
-        <nav className="mx-auto flex max-w-6xl items-center gap-6 px-6 py-4 text-sm">
+        <div className="mx-auto flex max-w-6xl items-center gap-6 px-6 py-4 text-sm">
           <Link to="/months" className="text-base font-semibold tracking-tight">
             Planejador Financeiro
           </Link>
 
-          <NavLink to="/months" end className={navClass}>
-            Meses
-          </NavLink>
-          <NavLink to="/budget" className={navClass}>
-            Orçamento
-          </NavLink>
-
-          {monthRef ? (
-            <>
-              <span className="text-muted-foreground">/</span>
-              <span className="font-mono text-muted-foreground">{monthRef}</span>
-              <NavLink to={`/months/${monthRef}/report`} className={navClass}>
-                Relatório
-              </NavLink>
-              <NavLink to={`/months/${monthRef}/transactions`} className={navClass}>
-                Transações
-              </NavLink>
-              <NavLink to={`/months/${monthRef}/budget`} className={navClass}>
-                Orçamento do mês
-              </NavLink>
-            </>
-          ) : null}
+          <nav className="flex items-center gap-6">
+            <NavLink to="/months" end className={navClass}>
+              Meses
+            </NavLink>
+            <NavLink to="/budget" className={navClass}>
+              Orçamento
+            </NavLink>
+          </nav>
 
           <div className="ml-auto">
             <NewMonthDialog />
           </div>
-        </nav>
+        </div>
+
+        {/* A second bar, separate from the global nav above, so a month's own
+            tabs don't have to compete for space with "Meses"/"Orçamento" in one
+            crowded row. Only rendered once a month is actually selected. */}
+        {monthRef ? (
+          <div className="border-t bg-muted/40">
+            <div className="mx-auto flex max-w-6xl items-center gap-6 px-6 py-3 text-sm">
+              <span className="font-mono font-medium">{monthRef}</span>
+              <nav className="flex items-center gap-6">
+                <NavLink to={`/months/${monthRef}/report`} className={navClass}>
+                  Relatório
+                </NavLink>
+                <NavLink to={`/months/${monthRef}/transactions`} className={navClass}>
+                  Transações
+                </NavLink>
+                <NavLink to={`/months/${monthRef}/budget`} className={navClass}>
+                  Orçamento do mês
+                </NavLink>
+              </nav>
+            </div>
+          </div>
+        ) : null}
       </header>
 
       <main className="mx-auto max-w-6xl px-6 py-8">
